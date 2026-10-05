@@ -8,7 +8,7 @@ import {
   BookOpen, ChevronDown, ChevronRight,
   Bold, CalendarDays, Command, Copy, Download, File, FileDown, FilePlus, FilePenLine, FolderOpen,
   Hash, Heading2, ImagePlus, Info, Link2, MoreHorizontal, PanelLeft, PanelRight, PanelsTopLeft,
-  Palette, Plus, Puzzle, Redo2, Search, Settings, Share2, Sparkles, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
+  Palette, Plus, Puzzle, Redo2, Search, Settings, Share2, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
 } from "lucide-react";
 
 type Block =
@@ -348,7 +348,10 @@ export default function Home() {
 
   const openNote = (note: Note, newTab = false) => {
     setActiveId(note.id);
-    setTabs(current => current.includes(note.id) ? current : [...current, note.id]);
+    setTabs(current => {
+      if (current.includes(note.id)) return current;
+      return newTab ? [...current, note.id] : [...current, note.id];
+    });
     setActiveTab(note.id);
     setLeftOpen(window.innerWidth > 800 ? leftOpen : false);
   };
@@ -676,16 +679,16 @@ export default function Home() {
     const portableMarkdown = () => {
       const props = Object.entries(note.properties);
       const frontmatter = props.length
-        ? "---\\n" + props.map(([k,v]) => k + ": " + v.replace(/\\n/g, " ")).join("\\n") + "\\n---\\n\\n"
+        ? "---\n" + props.map(([k,v]) => k + ": " + v.replace(/\n/g, " ")).join("\n") + "\n---\n\n"
         : "";
       const body = note.blocks.map(b => {
         if (b.type === "text") return b.text;
         const path = imagePaths.get(b.imageId);
         return path
-          ? `![Screenshot](${path})\\n\\n${b.text ? b.text + "\\n\\n" : ""}`
+          ? `![Screenshot](${path})\n\n${b.text ? b.text + "\n\n" : ""}`
           : `<!-- Missing screenshot: ${b.imageId} -->`;
-      }).join("\\n").trimEnd();
-      return frontmatter + "# " + note.title + "\\n\\n" + body + "\\n";
+      }).join("\n").trimEnd();
+      return frontmatter + "# " + note.title + "\n\n" + body + "\n";
     };
 
     const portableHtml = () => {
