@@ -730,6 +730,84 @@ export default function Home() {
     setStatus("Exported");
   };
 
+  const exportVault = async () => {
+    const allNotes = await getNotes();
+    const allImages = new Set<string>();
+    allNotes.forEach(note => note.blocks.forEach(block => {
+      if (block.type === "image") allImages.add(block.imageId);
+    }));
+
+    const files: Record<string, Uint8Array> = {};
+    const imageMap: Record<string, string> = {};
+    let index = 0;
+
+    for (const imageId of allImages) {
+      const image = await getImage(imageId);
+      if (!image) continue;
+      index += 1;
+      const type = image.blob.type || "image/png";
+      const extension = type.split("/")[1]?.split("+")[0] || "png";
+      const path = `assets/${String(index).padStart(4, "0")}-screenshot.${extension}`;
+      imageMap[imageId] = path;
+      files[path] = new Uint8Array(await image.blob.arrayBuffer());
+    }
+
+    files["vault.json"] = strToU8(JSON.stringify({
+      format: "notekeep-vault",
+      version: 1,
+      exportedAt: Date.now(),
+      notes: allNotes,
+      imageMap
+    }, null, 2));
+
+    const blob = new Blob([zipSync(files)], { type: "application/zip" });
+    const filename = `notekeep-vault-${new Date().toISOString().slice(0,10)}.zip`;
+    if (navigator.share && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      try {
+        await navigator.share({ title: "NoteKeep vault backup", files: [new globalThis.File([blob], filename, { type: "application/zip" })] });
+        setStatus("Backup shared");
+        return;
+      } catch {}
+    }
+    downloadBlob(blob, filename);
+    setStatus("Vault backup exported");
+  };
+
+  const importVault = async (file: File) => {
+    const entries = unzipSync(new Uint8Array(await file.arrayBuffer()));
+    const manifest = entries["vault.json"];
+    if (!manifest) throw new Error("Not a NoteKeep vault backup.");
+    const payload = JSON.parse(strFromU8(manifest));
+    if (payload?.format !== "notekeep-vault") throw new Error("Unsupported vault backup.");
+
+    const imageMap = payload.imageMap && typeof payload.imageMap === "object" ? payload.imageMap as Record<string,string> : {};
+    const idMap = new Map<string,string>();
+    for (const [oldId, path] of Object.entries(imageMap)) {
+      const bytes = entries[path];
+      if (!bytes) continue;
+      const ext = path.split(".").pop()?.toLowerCase();
+      const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : ext === "gif" ? "image/gif" : "image/png";
+      const newId = await putImage(new Blob([bytes], { type: mime }));
+      idMap.set(oldId, newId);
+    }
+
+    const restored = (Array.isArray(payload.notes) ? payload.notes : []).map((raw: any) => {
+      const note = normalize({ ...raw, id: uid() });
+      note.blocks = note.blocks.map(block =>
+        block.type === "image"
+          ? { ...block, imageId: idMap.get(block.imageId) || "" }
+          : block
+      ).filter(block => block.type !== "image" || block.imageId);
+      return note;
+    });
+
+    for (const note of restored) await putNote(note);
+    const all = (await getNotes()).map(normalize).sort((a,b) => b.updatedAt - a.updatedAt);
+    setNotes(all);
+    if (restored[0]) openNote(restored[0], true);
+    setStatus(`Restored ${restored.length} notes`);
+  };
+
   const importNote = async (file: File) => {
     const extension = file.name.split(".").pop()?.toLowerCase() || "";
     let note: Note;
@@ -1149,9 +1227,14 @@ export default function Home() {
                 <label className="setting-toggle"><span><b>Confirm before deleting</b><small>Ask before permanently removing a note and its screenshots.</small></span><input type="checkbox" checked={confirmDelete} onChange={e=>setConfirmDelete(e.target.checked)}/></label>
                 <label className="setting-toggle"><span><b>Open wikilinks in new tab</b><small>Follow [[links]] without replacing the current tab.</small></span><input type="checkbox" checked={openLinksInNewTab} onChange={e=>setOpenLinksInNewTab(e.target.checked)}/></label>
                 <label className="setting-toggle"><span><b>Export frontmatter</b><small>Include note properties in Markdown exports.</small></span><input type="checkbox" checked={exportFrontmatter} onChange={e=>setExportFrontmatter(e.target.checked)}/></label>
-                <div className="settings-note"><b>Local vault</b><br/>{notes.length} note{notes.length===1?"":"s"} indexed in this browser's IndexedDB.</div>
-              </>}
-              {settingsTab==="Core plugins" && <>
+                <div className="settings-note"><b>On-device vault</b><br/>{notes.length} note{notes.length===1?"":"s"} stored in IndexedDB on this device. NoteKeep does not use the browser HTTP cache for your notes or screenshots.</div>
+                <div className="settings-section-label">Backup</div>
+                <div className="settings-note"><b>Portable vault backup</b><br/>Export one ZIP containing notes and screenshots. Save it to iCloud Drive or Google Drive through the iOS Files/share sheet, then restore it here when needed.</div>
+                <div className="settings-actions">
+                  <button className="settings-action" type="button" onClick={()=>void exportVault()}>Export vault backup</button>
+                  <button className="settings-action" type="button" onClick={()=>importFile.current?.click()}>Restore from backup</button>
+                </div>
+              </>}\n              {settingsTab==="Core plugins" && <>
                 {(Object.entries({
                   search:["Search","Search the vault and create notes from the mobile finder."],
                   commandPalette:["Command palette","Run actions without reaching for the sidebar."],
