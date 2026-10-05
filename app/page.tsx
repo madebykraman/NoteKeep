@@ -111,6 +111,11 @@ const resize = (el: HTMLTextAreaElement | null) => {
 };
 
 const dateLabel = (ts: number) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" });
+const localDateKey = () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 function noteText(note: Note) {
   return note.blocks.map(b => b.text).join("\n");
@@ -950,7 +955,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  });
+  }, [hotkeysEnabled, plugins.commandPalette, plugins.search]);
 
   const commands = [
     "New note",
