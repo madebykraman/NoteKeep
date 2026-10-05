@@ -135,13 +135,16 @@ export default function Home() {
         id: raw.id || uid(),
         title: raw.title || "",
         updatedAt: raw.updatedAt || Date.now(),
-        blocks: raw.blocks
-          .filter((b: any) => b && (b.type === "text" || (b.type === "image" && b.imageId)))
-          .map((b: any) =>
-            b.type === "image"
-              ? { id: b.id || uid(), type: "image", imageId: b.imageId, text: b.text || "" }
-              : { id: b.id || uid(), type: "text", text: b.text || "" }
-          ),
+        blocks: (() => {
+          const blocks = raw.blocks
+            .filter((b: any) => b && (b.type === "text" || (b.type === "image" && b.imageId)))
+            .map((b: any) =>
+              b.type === "image"
+                ? { id: b.id || uid(), type: "image", imageId: b.imageId, text: b.text || "" }
+                : { id: b.id || uid(), type: "text", text: b.text || "" }
+            );
+          return blocks.length ? blocks : [{ id: uid(), type: "text", text: "" }];
+        })(),
       };
     }
 
@@ -464,7 +467,6 @@ export default function Home() {
         >
           <Plus size={17} />
           <span>New note</span>
-          <kbd>⌘N</kbd>
         </button>
 
         <label className="search">
@@ -475,7 +477,6 @@ export default function Home() {
             placeholder="Search notes"
             aria-label="Search notes"
           />
-          <kbd>⌘K</kbd>
         </label>
 
         <div className="note-list" aria-label="Notes">
