@@ -288,6 +288,31 @@ export default function Home() {
     (kind === "camera" ? camera : photos).current?.click();
   };
 
+  const insertImageBlob = async (blob: Blob, afterBlockId: string) => {
+    if (!note) return;
+    const imageId = await putImage(blob);
+    const index = note.blocks.findIndex(block => block.id === afterBlockId);
+    const block: Block = { id: uid(), type: "image", imageId, text: "" };
+    const blocks = [...note.blocks];
+    blocks.splice(index >= 0 ? index + 1 : blocks.length, 0, block);
+    update({ blocks });
+    setTimeout(() => document.getElementById("block-" + block.id)?.focus(), 20);
+  };
+
+  const handlePaste = async (
+    event: React.ClipboardEvent<HTMLTextAreaElement>,
+    blockId: string
+  ) => {
+    const item = Array.from(event.clipboardData.items).find(item =>
+      item.type.startsWith("image/")
+    );
+    if (!item) return;
+    const file = item.getAsFile();
+    if (!file) return;
+    event.preventDefault();
+    await insertImageBlob(file, blockId);
+  };
+
   const addImage = async (files: File[]) => {
     const file = files.find(item => item.type.startsWith("image/"));
     const destination = target.current;
@@ -543,6 +568,7 @@ export default function Home() {
                       sizeTextarea(event.currentTarget);
                       updateBlock(block.id, event.target.value);
                     }}
+                    onPaste={event => void handlePaste(event, block.id)}
                     onFocus={() => {
                       activeBlock.current = block.id;
                     }}
