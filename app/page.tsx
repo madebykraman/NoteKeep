@@ -18,12 +18,14 @@ const deleteItem=(store:"notes"|"images",id:string)=>idb("notes"===store?"notes"
 
 export default function Home(){
  const [notes,setNotes]=useState<Note[]>([]),[id,setId]=useState(""),[search,setSearch]=useState(""),[drawer,setDrawer]=useState(false),[actions,setActions]=useState(false),[review,setReview]=useState(false),[selected,setSelected]=useState(0),[urls,setUrls]=useState<Record<string,string>>({}),[status,setStatus]=useState("Saved"),[ready,setReady]=useState(false);
- const save=useRef<ReturnType<typeof setTimeout>|null>(null),photos=useRef<HTMLInputElement>(null),camera=useRef<HTMLInputElement>(null);
+ const save=useRef<ReturnType<typeof setTimeout>|null>(null),photos=useRef<HTMLInputElement>(null),camera=useRef<HTMLInputElement>(null),editor=useRef<HTMLTextAreaElement>(null);
  const note=notes.find(n=>n.id===id)??notes[0];
 
  useEffect(()=>{(async()=>{let n=await getNotes();if(!n.length){const x=blank();await putNote(x);n=[x]}n=n.map(x=>{const raw=x as Note&{imageIds?:string[]};return {...x,images:Array.isArray(raw.images)?raw.images:(Array.isArray(raw.imageIds)?raw.imageIds:[])} }).sort((a,b)=>b.updatedAt-a.updatedAt);setNotes(n);setId(n[0].id);setReady(true)})().catch(()=>{const x=blank();setNotes([x]);setId(x.id);setReady(true)})},[]);
  useEffect(()=>{let dead=false;const made:string[]=[];(async()=>{const next:Record<string,string>={};for(const imageId of note?.images??[]){const item=await getImage(imageId);if(item&&!dead){const u=URL.createObjectURL(item.blob);next[imageId]=u;made.push(u)}}if(!dead)setUrls(next)})().catch(()=>{});return()=>{dead=true;made.forEach(URL.revokeObjectURL)}},[note?.id,note?.images]);
  useEffect(()=>()=>{if(save.current)clearTimeout(save.current)},[]);
+ useEffect(()=>{const el=editor.current;if(!el)return;el.style.height="auto";el.style.height=el.scrollHeight+"px"},[note?.id]);
+ const resizeEditor=()=>{const el=editor.current;if(!el)return;el.style.height="auto";el.style.height=el.scrollHeight+"px"};
 
  const update=(patch:Partial<Note>)=>{if(!note)return;const n={...note,...patch,updatedAt:Date.now()};setNotes(v=>v.map(x=>x.id===note.id?n:x));setStatus("Saving");if(save.current)clearTimeout(save.current);save.current=setTimeout(()=>void putNote(n).then(()=>setStatus("Saved")).catch(()=>setStatus("Not saved")),300)};
  const create=async()=>{const n=blank();await putNote(n);setNotes(v=>[n,...v]);setId(n.id);setSelected(0);setDrawer(false)};
@@ -44,7 +46,7 @@ export default function Home(){
    <div className="canvas"><input className="heading" value={note.title} onChange={e=>update({title:e.target.value})} placeholder="Untitled note"/>
     <div className="note-surface">
      {note.images.length>0&&<div className="attachments">{note.images.map((imageId,i)=>urls[imageId]&&<div className="attachment" key={imageId}><img src={urls[imageId]} alt="Attached to this note"/><button className="attachment-delete" onClick={()=>void removeImage(imageId)} aria-label={"Remove image "+(i+1)}><X size={15}/></button></div>)}</div>}
-     <textarea className="note-editor" value={note.body} onChange={e=>update({body:e.target.value})} onPaste={paste} placeholder="Write your note…" autoCapitalize="sentences" autoCorrect="on" spellCheck/>
+     <textarea ref={editor} className="note-editor" value={note.body} onChange={e=>{update({body:e.target.value});requestAnimationFrame(resizeEditor)}} onPaste={paste} placeholder="Write your note…" autoCapitalize="sentences" autoCorrect="on" spellCheck/>
      <div className="note-toolbar"><button onClick={()=>setActions(true)}><ImagePlus size={17}/> Add photo</button><div><span>{status}</span><button className="clear" onClick={clear}>Clear</button></div></div>
     </div>
    </div>
