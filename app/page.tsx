@@ -460,7 +460,7 @@ export default function Home() {
       if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setCommandOpen(true); }
       if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); void createNote(); }
       if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search")?.focus(), 20); }
-      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setSheet(null); }
+      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -626,7 +626,7 @@ export default function Home() {
 
       <input ref={photos} className="hidden-file" type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
       <input ref={camera} className="hidden-file" type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
-      <input ref={importFile} className="hidden-file" type="file" accept=".md,.markdown,.txt,.text,.html,.htm,.json,text/markdown,text/plain,text/html,application/json" onChange={e=>{const f=e.target.files?.[0];if(f)void importMarkdown(f).catch(()=>setStatus("Import failed"));e.target.value=""}}/>
+      <input ref={importFile} className="hidden-file" type="file" accept=".md,.markdown,.txt,.text,.html,.htm,.json,text/markdown,text/plain,text/html,application/json" onChange={e=>{const f=e.target.files?.[0];if(f)void importNote(f).catch(()=>setStatus("Import failed"));e.target.value=""}}/>
 
       {sheet&&<div className="modal-backdrop" onClick={()=>setSheet(null)}><div className="image-sheet" onClick={e=>e.stopPropagation()}><div className="grabber"/><div className="sheet-title"><b>{sheet.mode==="replace"?"Replace screenshot":"Add screenshot"}</b><button onClick={()=>setSheet(null)}><X size={16}/></button></div><button onClick={()=>{imageTarget.current=sheet;setSheet(null);camera.current?.click()}}><CameraIcon/><span><b>Camera</b><small>Capture an image</small></span></button><button onClick={()=>{imageTarget.current=sheet;setSheet(null);photos.current?.click()}}><ImagePlus size={19}/><span><b>Photos</b><small>Choose from your device</small></span></button></div></div>}
 
