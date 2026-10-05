@@ -884,7 +884,7 @@ export default function Home() {
               </div>
             )}
 
-            {sourceMode ? (
+            {(plugins.sourceMode && sourceMode) ? (
               <textarea readOnly={readingMode} spellCheck={spellcheckEnabled} className="source-editor" value={markdownFor(active)} onChange={e => {
                 const lines = e.target.value.split("\n");
                 let start = 0;
@@ -935,7 +935,7 @@ export default function Home() {
               <div className="document">
                 {active.blocks.map((block, index) => block.type === "text" ? (
                   <section className="text-block" key={block.id}>
-                    <textarea readOnly={readingMode} spellCheck={spellcheckEnabled} id={"block-"+block.id} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>
+                    {readingMode ? renderMarkdownBlock(block.text, followLink) : <textarea spellCheck={spellcheckEnabled} id={"block-"+block.id} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>} 
                     <div className="block-tools">
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"insert"};setSheet({blockId:block.id,mode:"insert"})}} title="Insert image"><ImagePlus size={14}/></button>
                       <button onClick={()=>insertText(block.id)} title="New paragraph"><Plus size={14}/></button>
@@ -946,7 +946,7 @@ export default function Home() {
                   <figure className={"image-block " + (mobileImageMenu === block.id ? "context-open" : "")} key={block.id}>
                     {urls[block.imageId]&&<button className="image-frame" onClick={() => setImageViewer(urls[block.imageId])} aria-label="Open screenshot preview"><img src={urls[block.imageId]} alt="" draggable={false}/><span className="image-open-hint">Open preview</span></button>}
                     <button className="image-context-trigger" onClick={()=>setMobileImageMenu(block.id)} aria-label="Image actions"><MoreHorizontal size={17}/></button>
-                    <textarea readOnly={readingMode} spellCheck={spellcheckEnabled} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
+                    {readingMode ? renderMarkdownBlock(block.text, followLink) : <textarea spellCheck={spellcheckEnabled} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>}
                     <figcaption>
                       <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}} title="Save this screenshot"><Download size={13}/> Save image</button>
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"replace"};setSheet({blockId:block.id,mode:"replace"})}}><ImagePlus size={13}/> Replace</button>
