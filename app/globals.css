@@ -528,3 +528,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
   .source-editor{min-height:calc(100dvh - 180px);font-size:15px;line-height:1.65}
   .note-editor.reading-mode .note-title{color:var(--text)}
 }
+
+.compact-interface .left-sidebar{width:252px;flex-basis:252px}
+.compact-interface .right-sidebar{width:238px;flex-basis:238px}
+.compact-interface .note-editor{max-width:920px}
+@media(max-width:800px){
+  .compact-interface .left-sidebar{width:285px}
+  .compact-interface .right-sidebar{display:none}
+  .compact-interface .note-editor{max-width:none}
+}
