@@ -276,6 +276,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
+
+  useEffect(() => {
     (async () => {
       let all = await getNotes();
 
