@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { zipSync, strToU8 } from "fflate";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import {
   Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
-  Command, Copy, Download, File, FileDown, File, FilePlus, Folder, FolderOpen, GitBranch,
+  Command, Copy, Download, File, FileDown, FilePlus, Folder, FolderOpen, GitBranch,
   Hash, ImagePlus, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight,
   Plus, Search, Settings, Sparkles, Tags, Trash2, X, ZoomIn, ZoomOut
 } from "lucide-react";
@@ -415,8 +415,21 @@ export default function Home() {
       const content = format === "md-zip" ? portableMarkdown() : portableHtml();
       const extension = format === "md-zip" ? "md" : "html";
       files[`note.${extension}`] = strToU8(content);
+      files["notekeep.json"] = strToU8(JSON.stringify({
+        format: "notekeep-bundle",
+        version: 1,
+        note: {
+          ...note,
+          id: undefined,
+          blocks: note.blocks.map(block => block.type === "image"
+            ? { ...block, imagePath: imagePaths.get(block.imageId) || null }
+            : block
+          )
+        },
+        assets: Object.fromEntries(imagePaths)
+      }, null, 2));
       files["README.txt"] = strToU8(
-        `Exported from NoteKeep\n\nOpen note.${extension}. Screenshot attachments are stored in the assets/ folder.\n`
+        `Exported from NoteKeep\n\nOpen note.${extension} for a portable document. The notekeep.json manifest preserves block structure and screenshot/commentary relationships; screenshot files are in assets/.\n`
       );
       downloadBlob(new Blob([zipSync(files)], { type: "application/zip" }), `${baseName}-notekeep.zip`);
     } else {
@@ -438,10 +451,46 @@ export default function Home() {
 
   const importNote = async (file: File) => {
     const extension = file.name.split(".").pop()?.toLowerCase() || "";
-    const raw = await file.text();
     let note: Note;
 
-    if (extension === "json") {
+    if (extension === "zip") {
+      const entries = unzipSync(new Uint8Array(await file.arrayBuffer()));
+      const manifestBytes = entries["notekeep.json"];
+      if (!manifestBytes) throw new Error("This ZIP is not a NoteKeep export.");
+      const manifest = JSON.parse(strFromU8(manifestBytes));
+      if (manifest?.format !== "notekeep-bundle") throw new Error("Unsupported NoteKeep bundle.");
+
+      const source = normalize({ ...(manifest.note || {}), id: uid() });
+      const assets = manifest.assets && typeof manifest.assets === "object" ? manifest.assets as Record<string,string> : {};
+      const mimeFor = (path: string) => {
+        const ext = path.split(".").pop()?.toLowerCase();
+        return ext === "jpg" || ext === "jpeg" ? "image/jpeg"
+          : ext === "webp" ? "image/webp"
+          : ext === "gif" ? "image/gif"
+          : ext === "svg" ? "image/svg+xml"
+          : "image/png";
+      };
+
+      const restoredBlocks: Block[] = [];
+      for (const block of source.blocks) {
+        if (block.type !== "image") {
+          restoredBlocks.push(block);
+          continue;
+        }
+        const path = assets[block.imageId];
+        const bytes = path ? entries[path] : undefined;
+        if (!bytes) {
+          restoredBlocks.push({ ...block, imageId: "" } as Block);
+          continue;
+        }
+        const imageId = await putImage(new Blob([bytes], { type: mimeFor(path) }));
+        restoredBlocks.push({ ...block, imageId });
+      }
+      note = normalize({ ...source, blocks: restoredBlocks.filter(b => b.type !== "image" || b.imageId) });
+    } else {
+      const raw = await file.text();
+
+      if (extension === "json") {
       const parsed = JSON.parse(raw);
       const source = parsed?.format === "notekeep-note" ? parsed : parsed?.note || parsed;
       note = normalize({ ...source, id: uid(), title: source?.title || file.name.replace(/\.json$/i, ""), path: source?.path || file.name.replace(/\.json$/i, ".md") });
@@ -473,7 +522,8 @@ export default function Home() {
       while (start < lines.length && !lines[start].trim()) start++;
       const body = lines.slice(start).join("\n").trim();
       const blocks: Block[] = body ? body.split(/\n{2,}/).map(text => ({ id: uid(), type: "text", text })) : [{ id: uid(), type: "text", text: "" }];
-      note = { id: uid(), title, path: title + ".md", blocks, properties, updatedAt: Date.now(), createdAt: Date.now() };
+        note = { id: uid(), title, path: title + ".md", blocks, properties, updatedAt: Date.now(), createdAt: Date.now() };
+      }
     }
 
     await putNote(note);
@@ -618,15 +668,7 @@ export default function Home() {
                   </DropdownMenu.Portal>
                 </DropdownMenu.Root>
                 <button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button>
-                {formatOpen && <div className="format-pop">
-                  <div className="format-title">Export note</div>
-                  {(["md","txt","html","json"] as NoteFormat[]).map(format => (
-                    <button key={format} onClick={() => exportNote(active, format)}>
-                      <span>{format === "md" ? "Markdown" : format === "txt" ? "Plain text" : format === "html" ? "HTML" : "JSON"}</span>
-                      <small>.{format}</small>
-                    </button>
-                  ))}
-                </div>}
+
               </div>
             </div>
 
@@ -711,7 +753,7 @@ export default function Home() {
 
       <input ref={photos} className="hidden-file" type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
       <input ref={camera} className="hidden-file" type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
-      <input ref={importFile} className="hidden-file" type="file" accept=".md,.markdown,.txt,.text,.html,.htm,.json,text/markdown,text/plain,text/html,application/json" onChange={e=>{const f=e.target.files?.[0];if(f)void importNote(f).catch(()=>setStatus("Import failed"));e.target.value=""}}/>
+      <input ref={importFile} className="hidden-file" type="file" accept=".md,.markdown,.txt,.text,.html,.htm,.json,.zip,text/markdown,text/plain,text/html,application/json,application/zip" onChange={e=>{const f=e.target.files?.[0];if(f)void importNote(f).catch(()=>setStatus("Import failed"));e.target.value=""}}/>
 
       {sheet&&<div className="modal-backdrop" onClick={()=>setSheet(null)}><div className="image-sheet" onClick={e=>e.stopPropagation()}><div className="grabber"/><div className="sheet-title"><b>{sheet.mode==="replace"?"Replace screenshot":"Add screenshot"}</b><button onClick={()=>setSheet(null)}><X size={16}/></button></div><button onClick={()=>{imageTarget.current=sheet;setSheet(null);camera.current?.click()}}><CameraIcon/><span><b>Camera</b><small>Capture an image</small></span></button><button onClick={()=>{imageTarget.current=sheet;setSheet(null);photos.current?.click()}}><ImagePlus size={19}/><span><b>Photos</b><small>Choose from your device</small></span></button></div></div>}
 
