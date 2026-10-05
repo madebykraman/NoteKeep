@@ -909,7 +909,7 @@ export default function Home() {
           <button onClick={()=>{void copyImage(mobileImageMenu);setMobileImageMenu(null)}}><Copy/><span>Copy image</span></button>
           <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"){imageTarget.current={blockId:b.id,mode:"replace"};setSheet({blockId:b.id,mode:"replace"})};setMobileImageMenu(null)}}><ImagePlus/><span>Replace image</span></button>
           <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"&&urls[b.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[b.imageId];a.click()};setMobileImageMenu(null)}}><Download/><span>Save image</span></button>
-          <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"&&urls[b.imageId]&&navigator.share){fetch(urls[b.imageId]).then(r=>r.blob()).then(blob=>navigator.share({files:[new File([blob],"screenshot.png",{type:blob.type})]}).catch(()=>{}));}setMobileImageMenu(null)}}><Share2/><span>Share image</span></button>
+          <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"&&urls[b.imageId]&&navigator.share){fetch(urls[b.imageId]).then(r=>r.blob()).then(blob=>navigator.share({files:[new globalThis.File([blob],"screenshot.png",{type:blob.type})]}).catch(()=>{}));}setMobileImageMenu(null)}}><Share2/><span>Share image</span></button>
           <button className="danger" onClick={()=>{void removeBlock(mobileImageMenu);setMobileImageMenu(null)}}><Trash2/><span>Delete image</span></button>
         </div>
       </div>}
