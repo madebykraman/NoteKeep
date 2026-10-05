@@ -115,7 +115,8 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("");
   const [query, setQuery] = useState("");
   const [ready, setReady] = useState(false);
-  const [leftOpen, setLeftOpen] = useState(true);
+  const [leftOpen, setLeftOpen] = useState(false);
+  const [formatOpen, setFormatOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(true);
   const [rightPanel, setRightPanel] = useState<"backlinks" | "outline" | "tags">("backlinks");
   const [commandOpen, setCommandOpen] = useState(false);
@@ -175,6 +176,13 @@ export default function Home() {
     notes.forEach(n => tagsIn(n).forEach(t => map.set(t, (map.get(t) || 0) + 1)));
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [notes]);
+
+  useEffect(() => {
+    const syncSidebar = () => setLeftOpen(window.innerWidth > 800);
+    syncSidebar();
+    window.addEventListener("resize", syncSidebar);
+    return () => window.removeEventListener("resize", syncSidebar);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -303,49 +311,105 @@ export default function Home() {
     setPropertyKey(""); setPropertyValue("");
   };
 
+  type NoteFormat = "md" | "txt" | "html" | "json";
+
   const markdownFor = (note: Note) => {
     const props = Object.entries(note.properties);
     const frontmatter = props.length
       ? "---\n" + props.map(([k,v]) => k + ": " + v.replace(/\n/g, " ")).join("\n") + "\n---\n\n"
       : "";
-    const body = note.blocks.map(b => b.type === "text" ? b.text : "![Screenshot](notekeep://" + b.imageId + ")\n\n" + (b.text ? b.text + "\n\n" : "")).join("\n");
+    const body = note.blocks.map(b => b.type === "text"
+      ? b.text
+      : "![Screenshot](notekeep://"+b.imageId+")\n\n" + (b.text ? b.text + "\n\n" : "")
+    ).join("\n");
     return frontmatter + "# " + note.title + "\n\n" + body.trimEnd() + "\n";
   };
 
-  const exportNote = (note = active) => {
+  const plainTextFor = (note: Note) =>
+    note.title + "\n\n" + note.blocks.map(b => b.text).filter(Boolean).join("\n\n");
+
+  const htmlFor = (note: Note) => {
+    const esc = (value: string) => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    const body = note.blocks.map(b => b.type === "image"
+      ? '<figure><img src="notekeep://'+esc(b.imageId)+'" alt="Screenshot"><figcaption>'+esc(b.text || "")+'</figcaption></figure>'
+      : '<p>'+esc(b.text).replace(/\n/g,"<br>")+'</p>'
+    ).join("\n");
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(note.title)+'</title></head><body><main><h1>'+esc(note.title)+'</h1>'+body+'</main></body></html>';
+  };
+
+  const jsonFor = (note: Note) => JSON.stringify({
+    format: "notekeep-note",
+    version: 1,
+    title: note.title,
+    path: note.path,
+    properties: note.properties,
+    blocks: note.blocks,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+  }, null, 2);
+
+  const exportNote = (note = active, format: NoteFormat = "md") => {
     if (!note) return;
-    const blob = new Blob([markdownFor(note)], { type: "text/markdown;charset=utf-8" });
+    const content = format === "md" ? markdownFor(note)
+      : format === "txt" ? plainTextFor(note)
+      : format === "html" ? htmlFor(note)
+      : jsonFor(note);
+    const mime = format === "md" ? "text/markdown;charset=utf-8"
+      : format === "txt" ? "text/plain;charset=utf-8"
+      : format === "html" ? "text/html;charset=utf-8"
+      : "application/json;charset=utf-8";
+    const ext = format === "md" ? "md" : format;
+    const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.download = note.path.endsWith(".md") ? note.path : note.path + ".md";
+    a.download = (note.path.replace(/\.md$/i, "") || note.title || "Untitled") + "." + ext;
     a.href = url;
     a.click();
     URL.revokeObjectURL(url);
+    setFormatOpen(false);
     setStatus("Exported");
   };
 
-  const importMarkdown = async (file: File) => {
-    const text = await file.text();
-    const lines = text.split(/\r?\n/);
-    let start = 0;
-    const properties: Record<string,string> = {};
-    if (lines[0]?.trim() === "---") {
-      const end = lines.findIndex((line, i) => i > 0 && line.trim() === "---");
-      if (end > 0) {
-        lines.slice(1, end).forEach(line => {
-          const i = line.indexOf(":");
-          if (i > 0) properties[line.slice(0,i).trim()] = line.slice(i + 1).trim();
-        });
-        start = end + 1;
+  const importNote = async (file: File) => {
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    const raw = await file.text();
+    let note: Note;
+
+    if (extension === "json") {
+      const parsed = JSON.parse(raw);
+      const source = parsed?.format === "notekeep-note" ? parsed : parsed?.note || parsed;
+      note = normalize({ ...source, id: uid(), title: source?.title || file.name.replace(/\.json$/i, ""), path: source?.path || file.name.replace(/\.json$/i, ".md") });
+    } else if (extension === "html" || extension === "htm") {
+      const doc = new DOMParser().parseFromString(raw, "text/html");
+      const title = doc.querySelector("title")?.textContent?.trim() || doc.querySelector("h1")?.textContent?.trim() || file.name.replace(/\.html?$/i, "");
+      const body = doc.querySelector("main")?.textContent?.trim() || doc.body?.textContent?.trim() || "";
+      note = { id: uid(), title: title || "Untitled", path: (title || "Untitled") + ".md", blocks: body ? [{ id: uid(), type: "text", text: body }] : [{ id: uid(), type: "text", text: "" }], properties: {}, updatedAt: Date.now(), createdAt: Date.now() };
+    } else if (extension === "txt" || extension === "text") {
+      const title = file.name.replace(/\.(txt|text)$/i, "") || "Untitled";
+      note = { id: uid(), title, path: title + ".md", blocks: [{ id: uid(), type: "text", text: raw.trim() }], properties: {}, updatedAt: Date.now(), createdAt: Date.now() };
+    } else {
+      const lines = raw.split(/\r?\n/);
+      let start = 0;
+      const properties: Record<string,string> = {};
+      if (lines[0]?.trim() === "---") {
+        const end = lines.findIndex((line, i) => i > 0 && line.trim() === "---");
+        if (end > 0) {
+          lines.slice(1, end).forEach(line => {
+            const i = line.indexOf(":");
+            if (i > 0) properties[line.slice(0,i).trim()] = line.slice(i + 1).trim();
+          });
+          start = end + 1;
+        }
       }
+      while (start < lines.length && !lines[start].trim()) start++;
+      const title = lines[start]?.match(/^#\s+(.+)$/)?.[1]?.trim() || file.name.replace(/\.(md|markdown)$/i, "") || "Untitled";
+      if (lines[start]?.match(/^#\s+/)) start++;
+      while (start < lines.length && !lines[start].trim()) start++;
+      const body = lines.slice(start).join("\n").trim();
+      const blocks: Block[] = body ? body.split(/\n{2,}/).map(text => ({ id: uid(), type: "text", text })) : [{ id: uid(), type: "text", text: "" }];
+      note = { id: uid(), title, path: title + ".md", blocks, properties, updatedAt: Date.now(), createdAt: Date.now() };
     }
-    while (start < lines.length && !lines[start].trim()) start++;
-    const title = lines[start]?.match(/^#\s+(.+)$/)?.[1]?.trim() || file.name.replace(/\.md$/i, "") || "Untitled";
-    if (lines[start]?.match(/^#\s+/)) start++;
-    while (start < lines.length && !lines[start].trim()) start++;
-    const body = lines.slice(start).join("\n").trim();
-    const blocks: Block[] = body ? body.split(/\n{2,}/).map(text => ({ id: uid(), type: "text", text })) : [{ id: uid(), type: "text", text: "" }];
-    const note: Note = { id: uid(), title, path: title + ".md", blocks, properties, updatedAt: Date.now(), createdAt: Date.now() };
+
     await putNote(note);
     setNotes(current => [note, ...current]);
     openNote(note, true);
@@ -376,8 +440,8 @@ export default function Home() {
     if (command === "New note") void createNote();
     if (command === "Search") { setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search")?.focus(), 30); }
     if (command === "Graph view") setGraphOpen(true);
-    if (command === "Export markdown") exportNote();
-    if (command === "Import markdown") importFile.current?.click();
+    if (command === "Export note") setFormatOpen(true);
+    if (command === "Import note") importFile.current?.click();
     if (command === "Toggle right sidebar") setRightOpen(v => !v);
     if (command === "Toggle left sidebar") setLeftOpen(v => !v);
     if (command === "Toggle source mode") setSourceMode(v => !v);
@@ -402,7 +466,7 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handler);
   });
 
-  const commands = ["New note", "Search", "Daily note", "Graph view", "Export markdown", "Import markdown", "Toggle left sidebar", "Toggle right sidebar", "Toggle source mode", "Open settings"];
+  const commands = ["New note", "Search", "Daily note", "Graph view", "Export note", "Import note", "Toggle left sidebar", "Toggle right sidebar", "Toggle source mode", "Open settings"];
   const filteredCommands = commands.filter(c => c.toLowerCase().includes(commandQuery.toLowerCase()));
 
   if (!ready || !active) return <main className="loading"><div><div className="loading-mark" /><span>NoteKeep</span></div></main>;
@@ -466,7 +530,19 @@ export default function Home() {
           <article className="note-editor" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
             <div className="note-head">
               <input className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" />
-              <div className="note-actions"><button className="more-note" onClick={() => exportNote()} title="Export Markdown"><Download size={16}/></button><button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button></div>
+              <div className="note-actions">
+                <button className="more-note" onClick={() => setFormatOpen(v => !v)} title="Export note"><Download size={16}/></button>
+                <button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button>
+                {formatOpen && <div className="format-pop">
+                  <div className="format-title">Export as</div>
+                  {(["md","txt","html","json"] as NoteFormat[]).map(format => (
+                    <button key={format} onClick={() => exportNote(active, format)}>
+                      <span>{format === "md" ? "Markdown" : format === "txt" ? "Plain text" : format === "html" ? "HTML" : "JSON"}</span>
+                      <small>.{format}</small>
+                    </button>
+                  ))}
+                </div>}
+              </div>
             </div>
 
             {Object.keys(active.properties).length > 0 && (
@@ -550,7 +626,7 @@ export default function Home() {
 
       <input ref={photos} className="hidden-file" type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
       <input ref={camera} className="hidden-file" type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
-      <input ref={importFile} className="hidden-file" type="file" accept=".md,text/markdown" onChange={e=>{const f=e.target.files?.[0];if(f)void importMarkdown(f).catch(()=>setStatus("Import failed"));e.target.value=""}}/>
+      <input ref={importFile} className="hidden-file" type="file" accept=".md,.markdown,.txt,.text,.html,.htm,.json,text/markdown,text/plain,text/html,application/json" onChange={e=>{const f=e.target.files?.[0];if(f)void importMarkdown(f).catch(()=>setStatus("Import failed"));e.target.value=""}}/>
 
       {sheet&&<div className="modal-backdrop" onClick={()=>setSheet(null)}><div className="image-sheet" onClick={e=>e.stopPropagation()}><div className="grabber"/><div className="sheet-title"><b>{sheet.mode==="replace"?"Replace screenshot":"Add screenshot"}</b><button onClick={()=>setSheet(null)}><X size={16}/></button></div><button onClick={()=>{imageTarget.current=sheet;setSheet(null);camera.current?.click()}}><CameraIcon/><span><b>Camera</b><small>Capture an image</small></span></button><button onClick={()=>{imageTarget.current=sheet;setSheet(null);photos.current?.click()}}><ImagePlus size={19}/><span><b>Photos</b><small>Choose from your device</small></span></button></div></div>}
 
