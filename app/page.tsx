@@ -1234,7 +1234,8 @@ export default function Home() {
                   <button className="settings-action" type="button" onClick={()=>void exportVault()}>Export vault backup</button>
                   <button className="settings-action" type="button" onClick={()=>importFile.current?.click()}>Restore from backup</button>
                 </div>
-              </>}\n              {settingsTab==="Core plugins" && <>
+              </>}
+              {settingsTab==="Core plugins" && <>
                 {(Object.entries({
                   search:["Search","Search the vault and create notes from the mobile finder."],
                   commandPalette:["Command palette","Run actions without reaching for the sidebar."],
