@@ -7,12 +7,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#111111",
+  themeColor: "rgb(15 16 19)",
 };
 
 export const metadata: Metadata = {
   title: "NoteKeep",
-  description: "A local-first knowledge base with visual notes.",
+  description: "Local-first notes with contextual screenshot commentary.",
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
