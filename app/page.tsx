@@ -622,9 +622,6 @@ export default function Home() {
                       sizeTextarea(event.currentTarget);
                       updateBlock(block.id, event.target.value);
                     }}
-                    onFocus={() => {
-                      activeBlock.current = block.id;
-                    }}
                     placeholder="Add a note about this image…"
                     rows={1}
                     spellCheck
