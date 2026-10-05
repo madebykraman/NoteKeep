@@ -7,8 +7,8 @@ import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import {
   Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
   Bold, CalendarDays, Command, Copy, Download, File, FileDown, FilePlus, FilePenLine, Folder, FolderOpen, GitBranch,
-  Hash, Heading2, ImagePlus, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight,
-  Plus, Redo2, Search, Settings, Share2, Sparkles, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
+  Hash, Heading2, ImagePlus, Info, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight, PanelsTopLeft,
+  Palette, Plus, Puzzle, Redo2, Search, Settings, Share2, Sparkles, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
 } from "lucide-react";
 
 type Block =
@@ -897,7 +897,7 @@ export default function Home() {
           <button className="mobile-chrome-button" onClick={()=>setLeftOpen(true)} aria-label="Open vault"><PanelLeft size={21}/></button>
           <div className="mobile-title">{active.title || "Untitled"}</div>
           <div className="mobile-chrome-actions">
-            <button className="mobile-chrome-button" onClick={()=>setMobileSheet("tabs")} aria-label="Open tabs"><BookOpen size={21}/></button>
+            <button className="mobile-chrome-button" onClick={()=>setMobileSheet("tabs")} aria-label="Open tabs"><PanelsTopLeft size={21}/></button>
             <button className="mobile-chrome-button" onClick={()=>setMobileSheet("more")} aria-label="More actions"><MoreHorizontal size={21}/></button>
           </div>
         </div>
@@ -909,6 +909,7 @@ export default function Home() {
           </div>
           <div className="appbar-actions">
             <span className={"save-label " + (status === "Saving" ? "saving" : "")}>{status}</span>
+            <button className="chrome-icon" onClick={() => setMobileSheet("tabs")} title="Switch tabs" aria-label="Switch tabs"><PanelsTopLeft size={17}/></button>
             <button className="chrome-icon" onClick={() => setRightOpen(v => !v)} title="Toggle right sidebar"><PanelRight size={17}/></button>
             <button className="chrome-icon danger" onClick={() => void deleteNote()} title="Delete note"><Trash2 size={16}/></button>
           </div>
@@ -1086,7 +1087,21 @@ export default function Home() {
           <Dialog.Overlay className="settings-overlay"/>
           <Dialog.Content className="settings-modal" aria-describedby={undefined}>
             <Dialog.Title className="sr-only">NoteKeep Settings</Dialog.Title>
-            <div className="settings-nav"><b>Settings</b>{["Editor","Appearance","Files & Links","Core plugins","Hotkeys","About"].map(x=><button className={settingsTab===x?"active":""} key={x} onClick={()=>setSettingsTab(x as typeof settingsTab)}>{x}</button>)}</div>
+            <div className="settings-nav">
+              <b>Settings</b>
+              {([
+                ["Editor", <FilePenLine size={15}/>],
+                ["Appearance", <Palette size={15}/>],
+                ["Files & Links", <FolderOpen size={15}/>],
+                ["Core plugins", <Puzzle size={15}/>],
+                ["Hotkeys", <Command size={15}/>],
+                ["About", <Info size={15}/>],
+              ] as const).map(([label,icon])=>
+                <button className={settingsTab===label?"active":""} key={label} onClick={()=>setSettingsTab(label as typeof settingsTab)}>
+                  <span className="settings-nav-icon">{icon}</span><span>{label}</span>
+                </button>
+              )}
+            </div>
             <div className="settings-main"><div className="settings-top"><div><small>SETTINGS</small><h2>{settingsTab}</h2></div><Dialog.Close asChild><button aria-label="Close settings"><X size={17}/></button></Dialog.Close></div>
               {settingsTab==="Editor" && <>
                 <label className="setting-toggle"><span><b>Spellcheck</b><small>Use the browser spelling engine while editing.</small></span><input type="checkbox" checked={spellcheckEnabled} onChange={e=>setSpellcheckEnabled(e.target.checked)}/></label>
