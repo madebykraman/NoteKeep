@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Camera, Download, ImagePlus, Menu, Plus, Search, Trash2, X
+  Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
+  Command, Copy, Download, File, FilePlus, Folder, FolderOpen, GitBranch,
+  Hash, ImagePlus, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight,
+  Plus, Search, Settings, Sparkles, Tags, Trash2, X, ZoomIn, ZoomOut
 } from "lucide-react";
 
 type Block =
@@ -12,23 +15,27 @@ type Block =
 type Note = {
   id: string;
   title: string;
+  path: string;
   blocks: Block[];
+  properties: Record<string, string>;
   updatedAt: number;
+  createdAt: number;
 };
 
 type ImageRecord = { id: string; blob: Blob };
-type ImageTarget = { blockId: string; mode: "insert" | "replace" };
 
 const DB = "notekeep";
-const VERSION = 8;
-
+const VERSION = 9;
 const uid = () => crypto.randomUUID();
 
-const blank = (): Note => ({
+const blank = (title = "Untitled"): Note => ({
   id: uid(),
-  title: "",
+  title,
+  path: title === "Untitled" ? "Untitled.md" : title + ".md",
   blocks: [{ id: uid(), type: "text", text: "" }],
+  properties: {},
   updatedAt: Date.now(),
+  createdAt: Date.now(),
 });
 
 function database() {
@@ -44,163 +51,141 @@ function database() {
   });
 }
 
-function idb<T>(
-  store: "notes" | "images",
-  mode: IDBTransactionMode,
-  fn: (store: IDBObjectStore) => IDBRequest
-) {
-  return database().then(
-    db =>
-      new Promise<T>((resolve, reject) => {
-        const request = fn(db.transaction(store, mode).objectStore(store));
-        request.onsuccess = () => resolve(request.result as T);
-        request.onerror = () => reject(request.error);
-      })
-  );
+function idb<T>(store: "notes" | "images", mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest) {
+  return database().then(db => new Promise<T>((resolve, reject) => {
+    const request = fn(db.transaction(store, mode).objectStore(store));
+    request.onsuccess = () => resolve(request.result as T);
+    request.onerror = () => reject(request.error);
+  }));
 }
 
-const getNotes = () => idb<Note[]>("notes", "readonly", store => store.getAll());
-const putNote = (note: Note) => idb("notes", "readwrite", store => store.put(note));
-const getImage = (id: string) =>
-  idb<ImageRecord | undefined>("images", "readonly", store => store.get(id));
+const getNotes = () => idb<Note[]>("notes", "readonly", s => s.getAll());
+const putNote = (note: Note) => idb("notes", "readwrite", s => s.put(note));
+const getImage = (id: string) => idb<ImageRecord | undefined>("images", "readonly", s => s.get(id));
 const putImage = (blob: Blob) => {
   const id = uid();
-  return idb("images", "readwrite", store => store.put({ id, blob } as ImageRecord)).then(() => id);
+  return idb("images", "readwrite", s => s.put({ id, blob } as ImageRecord)).then(() => id);
 };
-const del = (store: "notes" | "images", id: string) =>
-  idb(store, "readwrite", objectStore => objectStore.delete(id));
+const del = (store: "notes" | "images", id: string) => idb(store, "readwrite", s => s.delete(id));
 
-const sizeTextarea = (element: HTMLTextAreaElement | null) => {
-  if (!element) return;
-  element.style.height = "0px";
-  element.style.height = Math.max(30, element.scrollHeight) + "px";
+const normalize = (raw: any): Note => {
+  const blocks: Block[] = Array.isArray(raw.blocks)
+    ? raw.blocks.filter((b: any) => b && (b.type === "text" || (b.type === "image" && b.imageId))).map((b: any) =>
+        b.type === "image"
+          ? { id: b.id || uid(), type: "image", imageId: b.imageId, text: b.text || "" }
+          : { id: b.id || uid(), type: "text", text: b.text || "" })
+    : Array.isArray(raw.cards)
+      ? raw.cards.map((c: any) => c?.imageId
+          ? ({ id: uid(), type: "image", imageId: c.imageId, text: c.text || "" } as Block)
+          : ({ id: uid(), type: "text", text: c?.text || "" } as Block))
+      : [];
+  const title = raw.title || "Untitled";
+  return {
+    id: raw.id || uid(), title, path: raw.path || title + ".md",
+    blocks: blocks.length ? blocks : [{ id: uid(), type: "text", text: "" }],
+    properties: raw.properties || {}, updatedAt: raw.updatedAt || Date.now(), createdAt: raw.createdAt || raw.updatedAt || Date.now()
+  };
 };
 
-const formatDate = (timestamp: number) => {
-  const date = new Date(timestamp);
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  }
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+const resize = (el: HTMLTextAreaElement | null) => {
+  if (!el) return;
+  el.style.height = "0px";
+  el.style.height = Math.max(30, el.scrollHeight) + "px";
 };
 
-const wrapText = (
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number
-) => {
-  const result: string[] = [];
-  for (const paragraph of text.split("\n")) {
-    if (!paragraph) {
-      result.push("");
-      continue;
-    }
-    let line = "";
-    for (const word of paragraph.split(/\s+/)) {
-      const candidate = line ? line + " " + word : word;
-      if (ctx.measureText(candidate).width <= maxWidth) {
-        line = candidate;
-      } else {
-        if (line) result.push(line);
-        line = word;
-      }
-    }
-    if (line) result.push(line);
-  }
-  return result.length ? result : [""];
-};
+const dateLabel = (ts: number) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" });
+
+function noteText(note: Note) {
+  return note.blocks.map(b => b.text).join("\n");
+}
+
+function linksIn(note: Note) {
+  const text = noteText(note);
+  return Array.from(text.matchAll(/\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g)).map(m => m[1].trim().toLowerCase());
+}
+
+function tagsIn(note: Note) {
+  return Array.from(new Set((noteText(note).match(/(^|\s)#([a-zA-Z0-9_-]+)/g) || []).map(x => x.trim().slice(1))));
+}
 
 export default function Home() {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [id, setId] = useState("");
-  const [search, setSearch] = useState("");
-  const [drawer, setDrawer] = useState(false);
+  const [activeId, setActiveId] = useState("");
+  const [tabs, setTabs] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState("");
+  const [query, setQuery] = useState("");
   const [ready, setReady] = useState(false);
-  const [sheet, setSheet] = useState<ImageTarget | null>(null);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  const [rightPanel, setRightPanel] = useState<"backlinks" | "outline" | "tags">("backlinks");
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [sourceMode, setSourceMode] = useState(false);
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState("Saved");
+  const [status, setStatus] = useState("Ready");
+  const [zoom, setZoom] = useState(1);
+  const [sheet, setSheet] = useState<{ blockId: string; mode: "insert" | "replace" } | null>(null);
+  const [propertyKey, setPropertyKey] = useState("");
+  const [propertyValue, setPropertyValue] = useState("");
 
   const photos = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
-  const target = useRef<ImageTarget | null>(null);
+  const imageTarget = useRef<typeof sheet>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const note = notes.find(n => n.id === id) ?? notes[0];
+  const active = notes.find(n => n.id === activeId) || notes[0];
+  const visibleNotes = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return notes;
+    return notes.filter(n => (n.title + " " + n.path + " " + noteText(n)).toLowerCase().includes(q));
+  }, [notes, query]);
 
-  const normalize = (raw: any): Note => {
-    if (Array.isArray(raw.blocks)) {
-      return {
-        id: raw.id || uid(),
-        title: raw.title || "",
-        updatedAt: raw.updatedAt || Date.now(),
-        blocks: (() => {
-          const blocks = raw.blocks
-            .filter((b: any) => b && (b.type === "text" || (b.type === "image" && b.imageId)))
-            .map((b: any) =>
-              b.type === "image"
-                ? { id: b.id || uid(), type: "image", imageId: b.imageId, text: b.text || "" }
-                : { id: b.id || uid(), type: "text", text: b.text || "" }
-            );
-          return blocks.length ? blocks : [{ id: uid(), type: "text", text: "" }];
-        })(),
-      };
-    }
+  const incoming = useMemo(() => {
+    if (!active) return [];
+    const name = active.title.toLowerCase();
+    return notes.filter(n => n.id !== active.id && linksIn(n).some(l => l === name || l.endsWith("/" + name)));
+  }, [notes, active]);
 
-    if (Array.isArray(raw.cards)) {
-      const blocks: Block[] = [];
-      for (const card of raw.cards) {
-        if (card?.imageId) {
-          blocks.push({
-            id: uid(),
-            type: "image",
-            imageId: card.imageId,
-            text: card.text || "",
-          });
-        } else if (card?.text) {
-          blocks.push({ id: uid(), type: "text", text: card.text });
-        }
-      }
-      return {
-        id: raw.id || uid(),
-        title: raw.title || "",
-        updatedAt: raw.updatedAt || Date.now(),
-        blocks: blocks.length ? blocks : [{ id: uid(), type: "text", text: "" }],
-      };
-    }
+  const outgoing = useMemo(() => {
+    if (!active) return [];
+    return linksIn(active).map(link => notes.find(n => n.title.toLowerCase() === link || n.path.toLowerCase() === link + ".md")).filter(Boolean) as Note[];
+  }, [notes, active]);
 
-    return blank();
-  };
+  const allTags = useMemo(() => {
+    const map = new Map<string, number>();
+    notes.forEach(n => tagsIn(n).forEach(t => map.set(t, (map.get(t) || 0) + 1)));
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [notes]);
 
   useEffect(() => {
     (async () => {
       let all = await getNotes();
       if (!all.length) {
         const fresh = blank();
+        fresh.title = "Welcome to NoteKeep";
+        fresh.path = "Welcome to NoteKeep.md";
+        fresh.blocks = [{ id: uid(), type: "text", text: "A local-first knowledge base with Obsidian-style links and your visual screenshot workflow.\n\nTry [[Daily Notes]], add #ideas, or paste a screenshot directly into this note." }];
         await putNote(fresh);
         all = [fresh];
       }
       all = all.map(normalize).sort((a, b) => b.updatedAt - a.updatedAt);
       setNotes(all);
-      setId(all[0].id);
+      setActiveId(all[0].id);
+      setTabs([all[0].id]);
+      setActiveTab(all[0].id);
       setReady(true);
-    })().catch(() => {
-      const fresh = blank();
-      setNotes([fresh]);
-      setId(fresh.id);
-      setReady(true);
-    });
+    })().catch(() => setReady(true));
   }, []);
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     const created: string[] = [];
-
     (async () => {
-      const ids = (note?.blocks || [])
-        .filter((block): block is Extract<Block, { type: "image" }> => block.type === "image")
-        .map(block => block.imageId);
-
+      const ids = active.blocks.filter((b): b is Extract<Block, { type: "image" }> => b.type === "image").map(b => b.imageId);
       const next: Record<string, string> = {};
       for (const imageId of ids) {
         const item = await getImage(imageId);
@@ -211,524 +196,289 @@ export default function Home() {
         }
       }
       if (!cancelled) setUrls(next);
-    })().catch(() => {});
+    })();
+    return () => { cancelled = true; created.forEach(URL.revokeObjectURL); };
+  }, [active?.id, active?.blocks.map(b => b.type === "image" ? b.imageId : "").join("|")]);
 
-    return () => {
-      cancelled = true;
-      created.forEach(URL.revokeObjectURL);
-    };
-  }, [note?.id, note?.blocks.map(block => block.type === "image" ? block.imageId : "").join("|")]);
+  const openNote = (note: Note, newTab = false) => {
+    setActiveId(note.id);
+    if (newTab || !tabs.includes(note.id)) setTabs(current => current.includes(note.id) ? current : [...current, note.id]);
+    setActiveTab(note.id);
+    setLeftOpen(window.innerWidth > 800 ? leftOpen : false);
+  };
 
-  useEffect(() => () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-  }, []);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setDrawer(true);
-        setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0);
-      }
-
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
-        event.preventDefault();
-        const fresh = blank();
-        void putNote(fresh);
-        setNotes(current => [fresh, ...current]);
-        setId(fresh.id);
-        setDrawer(false);
-        setTimeout(() => document.querySelector<HTMLInputElement>(".title")?.focus(), 20);
-      }
-      if (event.key === "Escape") {
-        setSheet(null);
-        setDrawer(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  const createNote = async (title = "Untitled") => {
+    const n = blank(title);
+    await putNote(n);
+    setNotes(current => [n, ...current]);
+    openNote(n, true);
+    setTimeout(() => document.querySelector<HTMLInputElement>(".note-title")?.focus(), 30);
+  };
 
   const update = (patch: Partial<Note>) => {
-    if (!note) return;
-    const next = { ...note, ...patch, updatedAt: Date.now() };
-    setNotes(current => current.map(item => (item.id === note.id ? next : item)));
+    if (!active) return;
+    const next = { ...active, ...patch, updatedAt: Date.now() };
+    setNotes(current => current.map(n => n.id === active.id ? next : n));
     setStatus("Saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(
-      () =>
-        void putNote(next)
-          .then(() => setStatus("Saved"))
-          .catch(() => setStatus("Not saved")),
-      240
-    );
+    saveTimer.current = setTimeout(() => void putNote(next).then(() => setStatus("Saved")).catch(() => setStatus("Not saved")), 220);
   };
 
-  const updateBlock = (blockId: string, text: string) =>
-    update({
-      blocks: note.blocks.map(block =>
-        block.id === blockId ? { ...block, text } : block
-      ),
-    });
+  const updateBlock = (blockId: string, text: string) => {
+    update({ blocks: active.blocks.map(b => b.id === blockId ? { ...b, text } : b) });
+  };
 
-  const addText = (after?: string) => {
+  const insertText = (after?: string) => {
     const block: Block = { id: uid(), type: "text", text: "" };
-    const index = after ? note.blocks.findIndex(blockItem => blockItem.id === after) + 1 : note.blocks.length;
-    const blocks = [...note.blocks];
-    blocks.splice(Math.max(0, index), 0, block);
-    update({ blocks });
-    setTimeout(() => {
-      const element = document.getElementById("block-" + block.id) as HTMLTextAreaElement | null;
-      element?.focus();
-      sizeTextarea(element);
-    }, 20);
-  };
-
-  const openImagePicker = (blockId: string, mode: ImageTarget["mode"]) => {
-    const next = { blockId, mode };
-    target.current = next;
-    setSheet(next);
-  };
-
-  const chooseImageSource = (kind: "camera" | "photos") => {
-    if (!target.current) return;
-    setSheet(null);
-    (kind === "camera" ? camera : photos).current?.click();
-  };
-
-  const insertImageBlob = async (blob: Blob, afterBlockId: string) => {
-    if (!note) return;
-    const imageId = await putImage(blob);
-    const index = note.blocks.findIndex(block => block.id === afterBlockId);
-    const block: Block = { id: uid(), type: "image", imageId, text: "" };
-    const blocks = [...note.blocks];
-    blocks.splice(index >= 0 ? index + 1 : blocks.length, 0, block);
+    const blocks = [...active.blocks];
+    const i = after ? blocks.findIndex(b => b.id === after) + 1 : blocks.length;
+    blocks.splice(Math.max(0, i), 0, block);
     update({ blocks });
     setTimeout(() => document.getElementById("block-" + block.id)?.focus(), 20);
   };
 
-  const handlePaste = async (
-    event: React.ClipboardEvent<HTMLTextAreaElement>,
-    blockId: string
-  ) => {
-    const item = Array.from(event.clipboardData.items).find(item =>
-      item.type.startsWith("image/")
-    );
+  const insertImage = async (file: File, target = imageTarget.current) => {
+    if (!active || !target) return;
+    const imageId = await putImage(file);
+    if (target.mode === "replace") {
+      const old = active.blocks.find(b => b.id === target.blockId);
+      if (old?.type === "image") await del("images", old.imageId);
+      update({ blocks: active.blocks.map(b => b.id === target.blockId ? { ...b, imageId } : b) });
+    } else {
+      const blocks = [...active.blocks];
+      const i = blocks.findIndex(b => b.id === target.blockId);
+      blocks.splice(i >= 0 ? i + 1 : blocks.length, 0, { id: uid(), type: "image", imageId, text: "" });
+      update({ blocks });
+    }
+    imageTarget.current = null;
+    setSheet(null);
+  };
+
+  const pasteImage = async (e: React.ClipboardEvent<HTMLTextAreaElement>, blockId: string) => {
+    const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith("image/"));
     if (!item) return;
     const file = item.getAsFile();
     if (!file) return;
-    event.preventDefault();
-    await insertImageBlob(file, blockId);
-  };
-
-  const addImage = async (files: File[]) => {
-    const file = files.find(item => item.type.startsWith("image/"));
-    const destination = target.current;
-    if (!file || !note || !destination) return;
-
-    const imageId = await putImage(file);
-
-    if (destination.mode === "replace") {
-      const existing = note.blocks.find(block => block.id === destination.blockId);
-      if (existing?.type === "image") {
-        if (existing.imageId !== imageId) await del("images", existing.imageId);
-        update({
-          blocks: note.blocks.map(block =>
-            block.id === destination.blockId
-              ? { ...block, imageId }
-              : block
-          ),
-        });
-      }
-    } else {
-      const index = note.blocks.findIndex(block => block.id === destination.blockId);
-      const block: Block = { id: uid(), type: "image", imageId, text: "" };
-      const blocks = [...note.blocks];
-      blocks.splice(index >= 0 ? index + 1 : blocks.length, 0, block);
-      update({ blocks });
-      setTimeout(() => {
-        document.getElementById("block-" + block.id)?.focus();
-      }, 20);
-    }
-
-    target.current = null;
+    e.preventDefault();
+    await insertImage(file, { blockId, mode: "insert" });
   };
 
   const removeBlock = async (blockId: string) => {
-    const block = note.blocks.find(item => item.id === blockId);
-    if (!block) return;
-    if (block.type === "image") await del("images", block.imageId);
-
-    const blocks = note.blocks.filter(item => item.id !== blockId);
-    update({
-      blocks: blocks.length ? blocks : [{ id: uid(), type: "text", text: "" }],
-    });
+    const b = active.blocks.find(x => x.id === blockId);
+    if (b?.type === "image") await del("images", b.imageId);
+    const blocks = active.blocks.filter(x => x.id !== blockId);
+    update({ blocks: blocks.length ? blocks : [{ id: uid(), type: "text", text: "" }] });
   };
 
   const deleteNote = async () => {
-    if (!note || !confirm("Delete this note?")) return;
-    for (const block of note.blocks) {
-      if (block.type === "image") await del("images", block.imageId);
-    }
-    await del("notes", note.id);
-
-    const left = notes.filter(item => item.id !== note.id);
-    if (left.length) {
-      setNotes(left);
-      setId(left[0].id);
-    } else {
-      const fresh = blank();
-      await putNote(fresh);
-      setNotes([fresh]);
-      setId(fresh.id);
-    }
+    if (!active || !confirm("Delete this note?")) return;
+    for (const b of active.blocks) if (b.type === "image") await del("images", b.imageId);
+    await del("notes", active.id);
+    const left = notes.filter(n => n.id !== active.id);
+    if (!left.length) { await createNote(); return; }
+    setNotes(left);
+    setTabs(t => t.filter(id => id !== active.id));
+    openNote(left[0], false);
   };
 
-  const exportImageNote = async (block: Extract<Block, { type: "image" }>) => {
-    const source = urls[block.imageId];
-    if (!source) return;
+  const addProperty = () => {
+    if (!active || !propertyKey.trim()) return;
+    update({ properties: { ...active.properties, [propertyKey.trim()]: propertyValue } });
+    setPropertyKey(""); setPropertyValue("");
+  };
 
-    const image = new Image();
-    image.src = source;
-    await new Promise<void>(resolve => {
-      image.onload = () => resolve();
-      image.onerror = () => resolve();
+  const closeTab = (id: string) => {
+    setTabs(current => {
+      const next = current.filter(x => x !== id);
+      if (id === activeTab) {
+        const idx = current.indexOf(id);
+        const fallback = next[Math.max(0, idx - 1)] || next[0];
+        if (fallback) { setActiveId(fallback); setActiveTab(fallback); }
+      }
+      return next.length ? next : [activeId];
     });
-    if (!image.width || !image.height) return;
-
-    const width = 1600;
-    const padding = 96;
-    const maxImageHeight = 1050;
-    const scale = Math.min(
-      (width - padding * 2) / image.width,
-      maxImageHeight / image.height
-    );
-    const imageWidth = image.width * scale;
-    const imageHeight = image.height * scale;
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.font = "500 38px system-ui, sans-serif";
-    const lines = wrapText(ctx, block.text, width - padding * 2);
-    const lineHeight = 54;
-    canvas.width = width;
-    canvas.height = padding + imageHeight + 72 + lines.length * lineHeight + padding;
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, (width - imageWidth) / 2, padding, imageWidth, imageHeight);
-
-    ctx.fillStyle = "#151515";
-    ctx.font = "500 38px system-ui, sans-serif";
-    let y = padding + imageHeight + 64;
-    for (const line of lines) {
-      ctx.fillText(line, padding, y);
-      y += lineHeight;
-    }
-
-    const link = document.createElement("a");
-    link.download = "notekeep-" + Date.now() + ".png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
   };
 
-  const exportText = (text: string) => {
-    if (!text.trim()) return;
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const width = 1600;
-    const padding = 110;
-    const lineHeight = 58;
-    ctx.font = "500 42px system-ui, sans-serif";
-    const lines = wrapText(ctx, text, width - padding * 2);
-
-    canvas.width = width;
-    canvas.height = Math.max(620, 150 + lines.length * lineHeight + padding);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#151515";
-    ctx.font = "500 42px system-ui, sans-serif";
-
-    let y = 135;
-    for (const line of lines) {
-      ctx.fillText(line, padding, y);
-      y += lineHeight;
+  const runCommand = (command: string) => {
+    setCommandOpen(false); setCommandQuery("");
+    if (command === "New note") void createNote();
+    if (command === "Search") { setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search")?.focus(), 30); }
+    if (command === "Graph view") setGraphOpen(true);
+    if (command === "Toggle right sidebar") setRightOpen(v => !v);
+    if (command === "Toggle left sidebar") setLeftOpen(v => !v);
+    if (command === "Toggle source mode") setSourceMode(v => !v);
+    if (command === "Open settings") setSettingsOpen(true);
+    if (command === "Daily note") {
+      const title = new Date().toISOString().slice(0, 10);
+      const existing = notes.find(n => n.title === title);
+      if (existing) openNote(existing, true); else void createNote(title);
     }
-
-    const link = document.createElement("a");
-    link.download = "notekeep-text-" + Date.now() + ".png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
   };
 
-  if (!ready || !note) return <main className="loading">NoteKeep</main>;
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "p") { e.preventDefault(); setCommandOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".command-input")?.focus(), 20); }
+      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setCommandOpen(true); }
+      if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); void createNote(); }
+      if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search")?.focus(), 20); }
+      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setSheet(null); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  });
 
-  const filtered = notes.filter(item =>
-    (item.title + " " + item.blocks.map(block => block.text).join(" "))
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const commands = ["New note", "Search", "Daily note", "Graph view", "Toggle left sidebar", "Toggle right sidebar", "Toggle source mode", "Open settings"];
+  const filteredCommands = commands.filter(c => c.toLowerCase().includes(commandQuery.toLowerCase()));
+
+  if (!ready || !active) return <main className="loading"><div><div className="loading-mark" /><span>NoteKeep</span></div></main>;
 
   return (
-    <main className="app">
-      <aside className={"sidebar " + (drawer ? "open" : "")}>
-        <div className="sidebar-top">
-          <div className="brand">
-            <span className="brand-mark" aria-hidden="true" />
-            <span>NoteKeep</span>
-          </div>
-          <button className="sidebar-close mobile-only" onClick={() => setDrawer(false)} aria-label="Close notes">
-            <X size={18} />
-          </button>
+    <main className="obsidian-app">
+      <aside className={"left-sidebar " + (leftOpen ? "is-open" : "")}>
+        <div className="vault-head">
+          <div className="vault-name"><BookOpen size={15} /><span>NoteKeep Vault</span></div>
+          <button className="side-icon" onClick={() => setSettingsOpen(true)} aria-label="Settings"><Settings size={15} /></button>
         </div>
-
-        <button
-          className="new-note"
-          onClick={() => {
-            const fresh = blank();
-            void putNote(fresh);
-            setNotes(current => [fresh, ...current]);
-            setId(fresh.id);
-            setDrawer(false);
-            setTimeout(() => document.querySelector<HTMLInputElement>(".title")?.focus(), 20);
-          }}
-        >
-          <Plus size={17} />
-          <span>New note</span>
-        </button>
-
-        <label className="search">
-          <Search size={16} />
-          <input
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="Search notes"
-            aria-label="Search notes"
-          />
-        </label>
-
-        <div className="note-list" aria-label="Notes">
-          {filtered.length ? (
-            filtered.map(item => (
-              <button
-                className={"note-row " + (item.id === note.id ? "selected" : "")}
-                key={item.id}
-                onClick={() => {
-                  setId(item.id);
-                  setDrawer(false);
-                }}
-              >
-                <strong>{item.title || "Untitled"}</strong>
-                <span>
-                  {item.blocks.map(block => block.text).join(" ") || "Empty note"}
-                </span>
-                <time>{formatDate(item.updatedAt)}</time>
-              </button>
-            ))
-          ) : (
-            <div className="no-results">No notes found</div>
-          )}
+        <div className="ribbon">
+          <button onClick={() => void createNote()} title="New note"><FilePlus size={16} /></button>
+          <button onClick={() => setGraphOpen(true)} title="Graph"><GitBranch size={16} /></button>
+          <button onClick={() => setCommandOpen(true)} title="Command palette"><Command size={16} /></button>
+        </div>
+        <label className="vault-search"><Search size={14}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search vault" /><kbd>⌘ K</kbd></label>
+        <div className="explorer-head"><span>EXPLORER</span><div><button onClick={() => void createNote()} title="New note"><Plus size={13}/></button><button title="More"><MoreHorizontal size={13}/></button></div></div>
+        <div className="file-tree">
+          <div className="folder-row"><ChevronDown size={13}/><FolderOpen size={14}/><span>Notes</span></div>
+          {visibleNotes.map(n => (
+            <button key={n.id} className={"file-row " + (n.id === active.id ? "active" : "")} onClick={() => openNote(n)}>
+              <File size={14}/><span>{n.title || "Untitled"}</span><small>.md</small>
+            </button>
+          ))}
+          {!visibleNotes.length && <div className="empty-tree">No matching notes</div>}
+        </div>
+        <div className="left-footer">
+          <button onClick={() => setGraphOpen(true)}><GitBranch size={14}/> Graph view</button>
+          <button onClick={() => setSettingsOpen(true)}><Settings size={14}/> Settings</button>
         </div>
       </aside>
 
-      {drawer && (
-        <button className="scrim" onClick={() => setDrawer(false)} aria-label="Close notes" />
-      )}
-
-      <section className="editor-shell">
-        <header className="toolbar">
-          <button className="icon mobile-only" onClick={() => setDrawer(true)} aria-label="Open notes">
-            <Menu size={19} />
-          </button>
-          <div className="toolbar-spacer" />
-          <div className={"save-state " + (status === "Saving" ? "saving" : "")}>
-            <span className="status-dot" />
-            {status}
+      <section className="main-area">
+        <header className="appbar">
+          <div className="appbar-left">
+            <button className="chrome-icon" onClick={() => setLeftOpen(v => !v)} title="Toggle left sidebar"><PanelLeft size={17}/></button>
+            <div className="breadcrumbs"><span>Notes</span><span>/</span><b>{active.title || "Untitled"}</b></div>
           </div>
-          <button className="icon danger" onClick={() => void deleteNote()} aria-label="Delete note">
-            <Trash2 size={17} />
-          </button>
+          <div className="appbar-actions">
+            <span className={"save-label " + (status === "Saving" ? "saving" : "")}>{status}</span>
+            <button className="chrome-icon" onClick={() => setRightOpen(v => !v)} title="Toggle right sidebar"><PanelRight size={17}/></button>
+            <button className="chrome-icon danger" onClick={() => void deleteNote()} title="Delete note"><Trash2 size={16}/></button>
+          </div>
         </header>
 
-        <article className="editor">
-          <input
-            className="title"
-            value={note.title}
-            onChange={event => update({ title: event.target.value })}
-            placeholder="Untitled"
-            aria-label="Note title"
-          />
-
-          <div className="document">
-            {note.blocks.map((block, index) =>
-              block.type === "text" ? (
-                <section className="text-block" key={block.id}>
-                  <textarea
-                    id={"block-" + block.id}
-                    ref={element => sizeTextarea(element)}
-                    value={block.text}
-                    onChange={event => {
-                      sizeTextarea(event.currentTarget);
-                      updateBlock(block.id, event.target.value);
-                    }}
-                    onPaste={event => void handlePaste(event, block.id)}
-                    placeholder={index === 0 ? "Start writing…" : "Write something…"}
-                    rows={1}
-                    spellCheck
-                    autoCapitalize="sentences"
-                    aria-label="Note text"
-                  />
-                  <div className="block-tools">
-                    <button
-                      onClick={() => openImagePicker(block.id, "insert")}
-                      aria-label="Insert image"
-                      title="Insert image"
-                    >
-                      <ImagePlus size={15} />
-                    </button>
-                    <button
-                      onClick={() => addText(block.id)}
-                      aria-label="Add text below"
-                      title="Add text"
-                    >
-                      <Plus size={15} />
-                    </button>
-                    {block.text.trim() && (
-                      <button
-                        onClick={() => exportText(block.text)}
-                        aria-label="Export text as PNG"
-                        title="Export text as PNG"
-                      >
-                        <Download size={15} />
-                      </button>
-                    )}
-                    {note.blocks.length > 1 && (
-                      <button
-                        onClick={() => void removeBlock(block.id)}
-                        aria-label="Delete text block"
-                        title="Delete block"
-                      >
-                        <X size={15} />
-                      </button>
-                    )}
-                  </div>
-                </section>
-              ) : (
-                <figure className="image-block" key={block.id}>
-                  {urls[block.imageId] && (
-                    <img src={urls[block.imageId]} alt="" draggable={false} />
-                  )}
-                  <textarea
-                    id={"block-" + block.id}
-                    ref={element => sizeTextarea(element)}
-                    value={block.text}
-                    onChange={event => {
-                      sizeTextarea(event.currentTarget);
-                      updateBlock(block.id, event.target.value);
-                    }}
-                    placeholder="Add a note about this image…"
-                    rows={1}
-                    spellCheck
-                    autoCapitalize="sentences"
-                    aria-label="Image note"
-                  />
-                  <figcaption>
-                    <button onClick={() => void exportImageNote(block)}>
-                      <Download size={15} /> Export PNG
-                    </button>
-                    {block.text.trim() && (
-                      <button onClick={() => exportText(block.text)}>
-                        <Download size={15} /> Text PNG
-                      </button>
-                    )}
-                    <button onClick={() => openImagePicker(block.id, "replace")}>
-                      <ImagePlus size={15} /> Replace
-                    </button>
-                    <button
-                      onClick={() => void removeBlock(block.id)}
-                      className="danger"
-                      aria-label="Delete image"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </figcaption>
-                </figure>
-              )
-            )}
-          </div>
-
-          <div className="insert-bar">
-            <button onClick={() => addText()}>
-              <Plus size={16} />
-              Text
-            </button>
-            <button
-              onClick={() =>
-                openImagePicker(note.blocks[note.blocks.length - 1]?.id ?? "", "insert")
-              }
-            >
-              <ImagePlus size={16} />
-              Image
-            </button>
-            <span>Everything stays on this device.</span>
-          </div>
-        </article>
-      </section>
-
-      <input
-        ref={photos}
-        className="file-input"
-        type="file"
-        accept="image/*"
-        onChange={event => {
-          if (event.target.files) void addImage(Array.from(event.target.files));
-          event.target.value = "";
-        }}
-      />
-
-      <input
-        ref={camera}
-        className="file-input"
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={event => {
-          if (event.target.files) void addImage(Array.from(event.target.files));
-          event.target.value = "";
-        }}
-      />
-
-      {sheet && (
-        <div className="sheet-backdrop" onClick={() => setSheet(null)}>
-          <div className="action-sheet" onClick={event => event.stopPropagation()}>
-            <div className="grabber" />
-            <div className="sheet-heading">
-              <div>
-                <span className="eyebrow">{sheet.mode === "replace" ? "IMAGE" : "INSERT"}</span>
-                <h2>{sheet.mode === "replace" ? "Replace image" : "Add image"}</h2>
-              </div>
-              <button className="icon" onClick={() => setSheet(null)} aria-label="Close">
-                <X size={18} />
-              </button>
-            </div>
-            <button onClick={() => chooseImageSource("camera")}>
-              <Camera size={20} />
-              <span><b>Camera</b><small>Take a photo</small></span>
-            </button>
-            <button onClick={() => chooseImageSource("photos")}>
-              <ImagePlus size={20} />
-              <span><b>Photos</b><small>Choose from your library</small></span>
-            </button>
-            <button className="cancel" onClick={() => setSheet(null)}>Cancel</button>
+        <div className="tabs">
+          <div className="tab-strip">
+            {tabs.map(tabId => {
+              const n = notes.find(x => x.id === tabId);
+              if (!n) return null;
+              return <button key={tabId} className={"tab " + (tabId === activeTab ? "active" : "")} onClick={() => { setActiveTab(tabId); setActiveId(tabId); }}>
+                <File size={13}/><span>{n.title || "Untitled"}</span><i onClick={e => { e.stopPropagation(); closeTab(tabId); }}><X size={12}/></i>
+              </button>;
+            })}
+            <button className="new-tab" onClick={() => void createNote()}><Plus size={15}/></button>
           </div>
         </div>
-      )}
+
+        <div className="editor-wrap">
+          <article className="note-editor" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+            <div className="note-head">
+              <input className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" />
+              <button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button>
+            </div>
+
+            {Object.keys(active.properties).length > 0 && (
+              <div className="properties-inline">
+                {Object.entries(active.properties).map(([k,v]) => <span key={k}><b>{k}</b><em>{v}</em></span>)}
+              </div>
+            )}
+
+            {propertiesOpen && (
+              <div className="properties-pop">
+                <div className="pop-head"><b>Properties</b><button onClick={() => setPropertiesOpen(false)}><X size={14}/></button></div>
+                {Object.entries(active.properties).map(([k,v]) => <div className="property-row" key={k}><input value={k} readOnly/><input value={v} onChange={e => update({properties:{...active.properties,[k]:e.target.value}})}/><button onClick={() => { const p={...active.properties}; delete p[k]; update({properties:p}); }}><X size={13}/></button></div>)}
+                <div className="property-row new-property"><input placeholder="name" value={propertyKey} onChange={e=>setPropertyKey(e.target.value)}/><input placeholder="value" value={propertyValue} onChange={e=>setPropertyValue(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addProperty()}/><button onClick={addProperty}><Plus size={13}/></button></div>
+                <div className="property-tip">Properties are stored with the note and stay local.</div>
+              </div>
+            )}
+
+            {sourceMode ? (
+              <textarea className="source-editor" value={`# ${active.title}\n\n${noteText(active)}`} onChange={e => {
+                const lines = e.target.value.split("\n");
+                const title = lines[0]?.replace(/^#\s*/, "") || "Untitled";
+                update({title, blocks:[{id:active.blocks[0]?.id||uid(),type:"text",text:lines.slice(2).join("\n")}]});
+              }} />
+            ) : (
+              <div className="document">
+                {active.blocks.map((block, index) => block.type === "text" ? (
+                  <section className="text-block" key={block.id}>
+                    <textarea id={"block-"+block.id} ref={resize} value={block.text} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>
+                    <div className="block-tools">
+                      <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"insert"};setSheet({blockId:block.id,mode:"insert"})}} title="Insert image"><ImagePlus size={14}/></button>
+                      <button onClick={()=>insertText(block.id)} title="New paragraph"><Plus size={14}/></button>
+                      {active.blocks.length>1&&<button onClick={()=>void removeBlock(block.id)} title="Delete block"><X size={14}/></button>}
+                    </div>
+                  </section>
+                ) : (
+                  <figure className="image-block" key={block.id}>
+                    {urls[block.imageId]&&<img src={urls[block.imageId]} alt="" draggable={false}/>}
+                    <textarea ref={resize} value={block.text} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
+                    <figcaption>
+                      <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}}><Download size={13}/> Export</button>
+                      <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"replace"};setSheet({blockId:block.id,mode:"replace"})}}><ImagePlus size={13}/> Replace</button>
+                      <button className="danger" onClick={()=>void removeBlock(block.id)}><Trash2 size={13}/></button>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
+
+            <div className="insert-line"><button onClick={()=>insertText()}><Plus size={14}/> Add paragraph</button><button onClick={()=>{const last=active.blocks[active.blocks.length-1];imageTarget.current={blockId:last?.id||"",mode:"insert"};setSheet({blockId:last?.id||"",mode:"insert"})}}><ImagePlus size={14}/> Screenshot</button></div>
+          </article>
+        </div>
+
+        <footer className="statusbar">
+          <span>{active.path}</span><span>{noteText(active).split(/\s+/).filter(Boolean).length} words</span><span>{active.blocks.length} blocks</span>
+          <div className="zoom"><button onClick={()=>setZoom(z=>Math.max(.8,z-.1))}><ZoomOut size={13}/></button><span>{Math.round(zoom*100)}%</span><button onClick={()=>setZoom(z=>Math.min(1.2,z+.1))}><ZoomIn size={13}/></button></div>
+        </footer>
+      </section>
+
+      {rightOpen && <aside className="right-sidebar">
+        <div className="right-tabs"><button className={rightPanel==="backlinks"?"active":""} onClick={()=>setRightPanel("backlinks")}><Link2 size={13}/> Backlinks</button><button className={rightPanel==="outline"?"active":""} onClick={()=>setRightPanel("outline")}><ListIcon/> Outline</button><button className={rightPanel==="tags"?"active":""} onClick={()=>setRightPanel("tags")}><Hash size={13}/> Tags</button></div>
+        {rightPanel==="backlinks"&&<div className="side-content"><h4>Linked mentions</h4>{incoming.length?<>{incoming.map(n=><button className="mention" key={n.id} onClick={()=>openNote(n)}><b>{n.title}</b><span>{noteText(n).slice(0,110)||"No text"}</span></button>)}</>:<div className="side-empty">No backlinks yet.</div>}<h4>Outgoing links</h4>{outgoing.length?outgoing.map(n=><button className="mention compact" key={n.id} onClick={()=>openNote(n)}><Link2 size={12}/>{n.title}</button>):<div className="side-empty">No outgoing links.</div>}</div>}
+        {rightPanel==="outline"&&<div className="side-content"><h4>Outline</h4>{active.blocks.filter(b=>b.type==="text"&&b.text.trim()).map(b=><button className="outline-row" key={b.id} onClick={()=>document.getElementById("block-"+b.id)?.scrollIntoView({behavior:"smooth",block:"center"})}>{b.text.split("\n")[0].slice(0,70)}</button>)}{!noteText(active).trim()&&<div className="side-empty">Start writing to build an outline.</div>}</div>}
+        {rightPanel==="tags"&&<div className="side-content"><h4>All tags</h4>{allTags.map(([tag,count])=><button className="tag-row" key={tag} onClick={()=>setQuery("#"+tag)}><Hash size={12}/>{tag}<span>{count}</span></button>)}</div>}
+      </aside>}
+
+      <input ref={photos} className="hidden-file" type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
+      <input ref={camera} className="hidden-file" type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
+
+      {sheet&&<div className="modal-backdrop" onClick={()=>setSheet(null)}><div className="image-sheet" onClick={e=>e.stopPropagation()}><div className="grabber"/><div className="sheet-title"><b>{sheet.mode==="replace"?"Replace screenshot":"Add screenshot"}</b><button onClick={()=>setSheet(null)}><X size={16}/></button></div><button onClick={()=>{imageTarget.current=sheet;setSheet(null);camera.current?.click()}}><CameraIcon/><span><b>Camera</b><small>Capture an image</small></span></button><button onClick={()=>{imageTarget.current=sheet;setSheet(null);photos.current?.click()}}><ImagePlus size={19}/><span><b>Photos</b><small>Choose from your device</small></span></button></div></div>}
+
+      {commandOpen&&<div className="modal-backdrop" onClick={()=>setCommandOpen(false)}><div className="command-palette" onClick={e=>e.stopPropagation()}><div className="command-search"><Command size={16}/><input autoFocus className="command-input" value={commandQuery} onChange={e=>setCommandQuery(e.target.value)} placeholder="Type a command…"/><kbd>ESC</kbd></div><div className="command-list">{filteredCommands.map(c=><button key={c} onClick={()=>runCommand(c)}><span>{c}</span><ChevronRight size={14}/></button>)}{!filteredCommands.length&&<div className="command-empty">No commands found</div>}</div></div></div>}
+
+      {settingsOpen&&<div className="modal-backdrop" onClick={()=>setSettingsOpen(false)}><div className="settings-modal" onClick={e=>e.stopPropagation()}><div className="settings-nav"><b>Settings</b>{["Editor","Appearance","Files & Links","Core plugins","Hotkeys","About"].map((x,i)=><button className={i===0?"active":""} key={x}>{x}</button>)}</div><div className="settings-main"><div className="settings-top"><div><small>SETTINGS</small><h2>Editor</h2></div><button onClick={()=>setSettingsOpen(false)}><X size={17}/></button></div><label className="setting-toggle"><span><b>Live Preview</b><small>Render Markdown while you type.</small></span><input type="checkbox" defaultChecked/></label><label className="setting-toggle"><span><b>Spellcheck</b><small>Check spelling in note editors.</small></span><input type="checkbox" defaultChecked/></label><label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" defaultChecked/></label><div className="settings-note">NoteKeep keeps the vault local to this browser. No account or server is required.</div></div></div></div>}
+
+      {graphOpen&&<Graph notes={notes} active={active} onOpen={openNote} onClose={()=>setGraphOpen(false)}/>}
     </main>
   );
+}
+
+function ListIcon(){return <span className="list-icon">≡</span>}
+function CameraIcon(){return <span className="camera-icon">◉</span>}
+
+function Graph({notes,active,onOpen,onClose}:{notes:Note[];active:Note;onOpen:(n:Note)=>void;onClose:()=>void}) {
+  const nodes = notes.slice(0,24);
+  const cx=500, cy=310, r=Math.min(230,Math.max(100,nodes.length*13));
+  const points=nodes.map((n,i)=>({n,x:cx+(nodes.length===1?0:Math.cos(i/nodes.length*Math.PI*2)*r),y:cy+(nodes.length===1?0:Math.sin(i/nodes.length*Math.PI*2)*r)}));
+  const pos=new Map(points.map(p=>[p.n.id,p]));
+  return <div className="graph-overlay"><div className="graph-toolbar"><b>Graph view</b><span>{notes.length} notes</span><button onClick={onClose}><X size={17}/></button></div><svg viewBox="0 0 1000 620" className="graph-svg">{nodes.flatMap(n=>linksIn(n).map(l=>{const to=nodes.find(x=>x.title.toLowerCase()===l);const a=pos.get(n.id),b=to&&pos.get(to.id);return a&&b?<line key={n.id+l} x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>:null})).filter(Boolean)}{points.map(p=><g key={p.n.id} onClick={()=>onOpen(p.n)} className={p.n.id===active.id?"graph-node active": "graph-node"}><circle cx={p.x} cy={p.y} r={p.n.id===active.id?10:7}/><text x={p.x+13} y={p.y+4}>{p.n.title.slice(0,24)}</text></g>)}</svg></div>;
 }
