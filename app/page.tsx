@@ -117,6 +117,7 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
+  const [imageViewer, setImageViewer] = useState<string | null>(null);
   const [rightOpen, setRightOpen] = useState(true);
   const [rightPanel, setRightPanel] = useState<"backlinks" | "outline" | "tags">("backlinks");
   const [commandOpen, setCommandOpen] = useState(false);
@@ -460,7 +461,7 @@ export default function Home() {
       if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setCommandOpen(true); }
       if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); void createNote(); }
       if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search")?.focus(), 20); }
-      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); }
+      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); setImageViewer(null); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -599,7 +600,7 @@ export default function Home() {
                   </section>
                 ) : (
                   <figure className="image-block" key={block.id}>
-                    {urls[block.imageId]&&<img src={urls[block.imageId]} alt="" draggable={false}/>}
+                    {urls[block.imageId]&&<button className="image-frame" onClick={() => setImageViewer(urls[block.imageId])} aria-label="Open screenshot preview"><img src={urls[block.imageId]} alt="" draggable={false}/><span className="image-open-hint">Open preview</span></button>}
                     <textarea ref={resize} value={block.text} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
                     <figcaption>
                       <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}}><Download size={13}/> Export</button>
@@ -635,6 +636,11 @@ export default function Home() {
       {sheet&&<div className="modal-backdrop" onClick={()=>setSheet(null)}><div className="image-sheet" onClick={e=>e.stopPropagation()}><div className="grabber"/><div className="sheet-title"><b>{sheet.mode==="replace"?"Replace screenshot":"Add screenshot"}</b><button onClick={()=>setSheet(null)}><X size={16}/></button></div><button onClick={()=>{imageTarget.current=sheet;setSheet(null);camera.current?.click()}}><CameraIcon/><span><b>Camera</b><small>Capture an image</small></span></button><button onClick={()=>{imageTarget.current=sheet;setSheet(null);photos.current?.click()}}><ImagePlus size={19}/><span><b>Photos</b><small>Choose from your device</small></span></button></div></div>}
 
       {commandOpen&&<div className="modal-backdrop" onClick={()=>setCommandOpen(false)}><div className="command-palette" onClick={e=>e.stopPropagation()}><div className="command-search"><Command size={16}/><input autoFocus className="command-input" value={commandQuery} onChange={e=>setCommandQuery(e.target.value)} placeholder="Type a command…"/><kbd>ESC</kbd></div><div className="command-list">{filteredCommands.map(c=><button key={c} onClick={()=>runCommand(c)}><span>{c}</span><ChevronRight size={14}/></button>)}{!filteredCommands.length&&<div className="command-empty">No commands found</div>}</div></div></div>}
+
+      {imageViewer&&<div className="image-viewer" onClick={()=>setImageViewer(null)}>
+        <button className="image-viewer-close" onClick={()=>setImageViewer(null)} aria-label="Close image preview"><X size={20}/></button>
+        <img src={imageViewer} alt="Screenshot preview" onClick={e=>e.stopPropagation()} />
+      </div>}
 
       {settingsOpen&&<div className="modal-backdrop" onClick={()=>setSettingsOpen(false)}><div className="settings-modal" onClick={e=>e.stopPropagation()}><div className="settings-nav"><b>Settings</b>{["Editor","Appearance","Files & Links","Core plugins","Hotkeys","About"].map((x,i)=><button className={i===0?"active":""} key={x}>{x}</button>)}</div><div className="settings-main"><div className="settings-top"><div><small>SETTINGS</small><h2>Editor</h2></div><button onClick={()=>setSettingsOpen(false)}><X size={17}/></button></div><label className="setting-toggle"><span><b>Live Preview</b><small>Render Markdown while you type.</small></span><input type="checkbox" defaultChecked/></label><label className="setting-toggle"><span><b>Spellcheck</b><small>Check spelling in note editors.</small></span><input type="checkbox" defaultChecked/></label><label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" defaultChecked/></label><div className="settings-note">NoteKeep keeps the vault local to this browser. No account or server is required.</div></div></div></div>}
 
