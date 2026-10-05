@@ -657,12 +657,14 @@ export default function Home() {
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Portal>
                     <DropdownMenu.Content className="export-menu" align="end" sideOffset={8}>
-                      <div className="format-title">Export note</div>
+                      <DropdownMenu.Label className="export-label">Portable bundle</DropdownMenu.Label>
                       <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "md-zip")}><span>Markdown + images</span><small>.zip</small></DropdownMenu.Item>
-                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "md")}><span>Markdown only</span><small>.md</small></DropdownMenu.Item>
-                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "txt")}><span>Plain text</span><small>.txt</small></DropdownMenu.Item>
                       <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "html-zip")}><span>HTML + images</span><small>.zip</small></DropdownMenu.Item>
-                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "html")}><span>HTML only</span><small>.html</small></DropdownMenu.Item>
+                      <DropdownMenu.Separator className="export-separator"/>
+                      <DropdownMenu.Label className="export-label">Single file</DropdownMenu.Label>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "md")}><span>Markdown</span><small>.md</small></DropdownMenu.Item>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "html")}><span>HTML</span><small>.html</small></DropdownMenu.Item>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "txt")}><span>Plain text</span><small>.txt</small></DropdownMenu.Item>
                       <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "json")}><span>NoteKeep JSON</span><small>.json</small></DropdownMenu.Item>
                     </DropdownMenu.Content>
                   </DropdownMenu.Portal>
