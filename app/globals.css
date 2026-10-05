@@ -1246,3 +1246,72 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
 .opal-ui .mobile-tabs-overlay .tab-card:hover{
   background-color:var(--control-hover)!important;
 }
+
+
+/* Settings navigation uses the exact same row language as the workspace. */
+.opal-ui .settings-nav{
+  width:208px;
+  padding:12px;
+  background-color:var(--panel)!important;
+  border-right:1px solid var(--border);
+}
+.opal-ui .settings-nav>b{
+  display:block;
+  padding:10px 10px 14px;
+  color:var(--text);
+  font-size:13px;
+  font-weight:600;
+}
+.opal-ui .settings-nav button{
+  height:40px;
+  margin:2px 0;
+  padding:0 10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  border:1px solid transparent;
+  border-radius:var(--radius-sm);
+  background-color:transparent!important;
+  color:var(--text-2);
+  font-size:11px;
+}
+.opal-ui .settings-nav button:hover{
+  background-color:var(--control-hover)!important;
+  border-color:var(--border);
+  color:var(--text);
+}
+.opal-ui .settings-nav button.active{
+  background-color:var(--accent-soft)!important;
+  border-color:color-mix(in oklab,var(--accent) 22%,var(--border));
+  color:var(--text);
+}
+.opal-ui .settings-nav-icon{
+  width:24px;
+  height:24px;
+  display:grid;
+  place-items:center;
+  flex:none;
+  color:var(--text-3);
+}
+.opal-ui .settings-nav button.active .settings-nav-icon{
+  color:var(--accent);
+}
+.opal-ui .settings-nav button:hover .settings-nav-icon{
+  color:var(--text);
+}
+
+/* Tab switching is a dedicated navigation affordance, not a document icon. */
+.opal-ui .appbar-actions .chrome-icon[aria-label="Switch tabs"]{
+  background-color:var(--control)!important;
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+}
+.opal-ui .appbar-actions .chrome-icon[aria-label="Switch tabs"]:hover{
+  background-color:var(--control-hover)!important;
+  border-color:var(--border-strong);
+}
+@media(max-width:800px){
+  .opal-ui .settings-nav{width:126px;padding:10px 8px}
+  .opal-ui .settings-nav button{height:40px;padding:0 8px;gap:8px}
+  .opal-ui .settings-nav-icon{width:22px;height:22px}
+}
