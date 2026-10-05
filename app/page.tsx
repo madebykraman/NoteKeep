@@ -133,6 +133,7 @@ export default function Home() {
 
   const photos = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
+  const importFile = useRef<HTMLInputElement>(null);
   const imageTarget = useRef<typeof sheet>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -153,6 +154,21 @@ export default function Home() {
     if (!active) return [];
     return linksIn(active).map(link => notes.find(n => n.title.toLowerCase() === link || n.path.toLowerCase() === link + ".md")).filter(Boolean) as Note[];
   }, [notes, active]);
+
+  const unresolvedLinks = useMemo(() => {
+    if (!active) return [];
+    return [...new Set(linksIn(active))].filter(link => !notes.some(n => n.title.toLowerCase() === link || n.path.toLowerCase() === link + ".md"));
+  }, [notes, active]);
+
+  const outline = useMemo(() => {
+    if (!active) return [];
+    return active.blocks.flatMap(b => b.type === "text"
+      ? b.text.split("\n").map((line, index) => {
+          const match = line.match(/^(#{1,6})\s+(.+)$/);
+          return match ? { level: match[1].length, text: match[2].trim(), id: b.id + "-" + index } : null;
+        }).filter(Boolean) as { level:number; text:string; id:string }[]
+      : []);
+  }, [active]);
 
   const allTags = useMemo(() => {
     const map = new Map<string, number>();
@@ -287,6 +303,62 @@ export default function Home() {
     setPropertyKey(""); setPropertyValue("");
   };
 
+  const markdownFor = (note: Note) => {
+    const props = Object.entries(note.properties);
+    const frontmatter = props.length
+      ? "---\n" + props.map(([k,v]) => k + ": " + v.replace(/\n/g, " ")).join("\n") + "\n---\n\n"
+      : "";
+    const body = note.blocks.map(b => b.type === "text" ? b.text : "![Screenshot](notekeep://" + b.imageId + ")\n\n" + (b.text ? b.text + "\n\n" : "")).join("\n");
+    return frontmatter + "# " + note.title + "\n\n" + body.trimEnd() + "\n";
+  };
+
+  const exportNote = (note = active) => {
+    if (!note) return;
+    const blob = new Blob([markdownFor(note)], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.download = note.path.endsWith(".md") ? note.path : note.path + ".md";
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus("Exported");
+  };
+
+  const importMarkdown = async (file: File) => {
+    const text = await file.text();
+    const lines = text.split(/\r?\n/);
+    let start = 0;
+    const properties: Record<string,string> = {};
+    if (lines[0]?.trim() === "---") {
+      const end = lines.findIndex((line, i) => i > 0 && line.trim() === "---");
+      if (end > 0) {
+        lines.slice(1, end).forEach(line => {
+          const i = line.indexOf(":");
+          if (i > 0) properties[line.slice(0,i).trim()] = line.slice(i + 1).trim();
+        });
+        start = end + 1;
+      }
+    }
+    while (start < lines.length && !lines[start].trim()) start++;
+    const title = lines[start]?.match(/^#\s+(.+)$/)?.[1]?.trim() || file.name.replace(/\.md$/i, "") || "Untitled";
+    if (lines[start]?.match(/^#\s+/)) start++;
+    while (start < lines.length && !lines[start].trim()) start++;
+    const body = lines.slice(start).join("\n").trim();
+    const blocks: Block[] = body ? body.split(/\n{2,}/).map(text => ({ id: uid(), type: "text", text })) : [{ id: uid(), type: "text", text: "" }];
+    const note: Note = { id: uid(), title, path: title + ".md", blocks, properties, updatedAt: Date.now(), createdAt: Date.now() };
+    await putNote(note);
+    setNotes(current => [note, ...current]);
+    openNote(note, true);
+    setStatus("Imported");
+  };
+
+  const createLinkedNote = async (link: string) => {
+    const title = link.split("/").pop()?.trim() || "Untitled";
+    const existing = notes.find(n => n.title.toLowerCase() === title.toLowerCase());
+    if (existing) return openNote(existing, true);
+    await createNote(title);
+  };
+
   const closeTab = (id: string) => {
     setTabs(current => {
       const next = current.filter(x => x !== id);
@@ -304,6 +376,8 @@ export default function Home() {
     if (command === "New note") void createNote();
     if (command === "Search") { setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search")?.focus(), 30); }
     if (command === "Graph view") setGraphOpen(true);
+    if (command === "Export markdown") exportNote();
+    if (command === "Import markdown") importFile.current?.click();
     if (command === "Toggle right sidebar") setRightOpen(v => !v);
     if (command === "Toggle left sidebar") setLeftOpen(v => !v);
     if (command === "Toggle source mode") setSourceMode(v => !v);
@@ -328,7 +402,7 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handler);
   });
 
-  const commands = ["New note", "Search", "Daily note", "Graph view", "Toggle left sidebar", "Toggle right sidebar", "Toggle source mode", "Open settings"];
+  const commands = ["New note", "Search", "Daily note", "Graph view", "Export markdown", "Import markdown", "Toggle left sidebar", "Toggle right sidebar", "Toggle source mode", "Open settings"];
   const filteredCommands = commands.filter(c => c.toLowerCase().includes(commandQuery.toLowerCase()));
 
   if (!ready || !active) return <main className="loading"><div><div className="loading-mark" /><span>NoteKeep</span></div></main>;
@@ -392,7 +466,7 @@ export default function Home() {
           <article className="note-editor" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
             <div className="note-head">
               <input className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" />
-              <button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button>
+              <div className="note-actions"><button className="more-note" onClick={() => exportNote()} title="Export Markdown"><Download size={16}/></button><button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button></div>
             </div>
 
             {Object.keys(active.properties).length > 0 && (
@@ -411,10 +485,26 @@ export default function Home() {
             )}
 
             {sourceMode ? (
-              <textarea className="source-editor" value={`# ${active.title}\n\n${noteText(active)}`} onChange={e => {
+              <textarea className="source-editor" value={markdownFor(active)} onChange={e => {
                 const lines = e.target.value.split("\n");
-                const title = lines[0]?.replace(/^#\s*/, "") || "Untitled";
-                update({title, blocks:[{id:active.blocks[0]?.id||uid(),type:"text",text:lines.slice(2).join("\n")}]});
+                let start = 0;
+                const properties: Record<string,string> = {};
+                if (lines[0]?.trim() === "---") {
+                  const end = lines.findIndex((line, i) => i > 0 && line.trim() === "---");
+                  if (end > 0) {
+                    lines.slice(1, end).forEach(line => {
+                      const i = line.indexOf(":");
+                      if (i > 0) properties[line.slice(0,i).trim()] = line.slice(i + 1).trim();
+                    });
+                    start = end + 1;
+                  }
+                }
+                while (start < lines.length && !lines[start].trim()) start++;
+                const title = lines[start]?.replace(/^#\s*/, "") || "Untitled";
+                if (lines[start]?.match(/^#\s+/)) start++;
+                while (start < lines.length && !lines[start].trim()) start++;
+                const body = lines.slice(start).join("\n");
+                update({title, path:title + ".md", properties, blocks:[{id:active.blocks[0]?.id||uid(),type:"text",text:body}]});
               }} />
             ) : (
               <div className="document">
@@ -453,13 +543,14 @@ export default function Home() {
 
       {rightOpen && <aside className="right-sidebar">
         <div className="right-tabs"><button className={rightPanel==="backlinks"?"active":""} onClick={()=>setRightPanel("backlinks")}><Link2 size={13}/> Backlinks</button><button className={rightPanel==="outline"?"active":""} onClick={()=>setRightPanel("outline")}><ListIcon/> Outline</button><button className={rightPanel==="tags"?"active":""} onClick={()=>setRightPanel("tags")}><Hash size={13}/> Tags</button></div>
-        {rightPanel==="backlinks"&&<div className="side-content"><h4>Linked mentions</h4>{incoming.length?<>{incoming.map(n=><button className="mention" key={n.id} onClick={()=>openNote(n)}><b>{n.title}</b><span>{noteText(n).slice(0,110)||"No text"}</span></button>)}</>:<div className="side-empty">No backlinks yet.</div>}<h4>Outgoing links</h4>{outgoing.length?outgoing.map(n=><button className="mention compact" key={n.id} onClick={()=>openNote(n)}><Link2 size={12}/>{n.title}</button>):<div className="side-empty">No outgoing links.</div>}</div>}
-        {rightPanel==="outline"&&<div className="side-content"><h4>Outline</h4>{active.blocks.filter(b=>b.type==="text"&&b.text.trim()).map(b=><button className="outline-row" key={b.id} onClick={()=>document.getElementById("block-"+b.id)?.scrollIntoView({behavior:"smooth",block:"center"})}>{b.text.split("\n")[0].slice(0,70)}</button>)}{!noteText(active).trim()&&<div className="side-empty">Start writing to build an outline.</div>}</div>}
+        {rightPanel==="backlinks"&&<div className="side-content"><h4>Linked mentions</h4>{incoming.length?<>{incoming.map(n=><button className="mention" key={n.id} onClick={()=>openNote(n)}><b>{n.title}</b><span>{noteText(n).slice(0,110)||"No text"}</span></button>)}</>:<div className="side-empty">No backlinks yet.</div>}<h4>Outgoing links</h4>{outgoing.length?outgoing.map(n=><button className="mention compact" key={n.id} onClick={()=>openNote(n)}><Link2 size={12}/>{n.title}</button>):<div className="side-empty">No outgoing links.</div>}{unresolvedLinks.length>0&&<><h4>Unresolved links</h4>{unresolvedLinks.map(link=><button className="mention compact" key={link} onClick={()=>void createLinkedNote(link)}><Plus size={12}/>Create “{link}”</button>)}</>}</div>}
+        {rightPanel==="outline"&&<div className="side-content"><h4>Outline</h4>{outline.length?outline.map(item=><button className="outline-row" key={item.id} style={{paddingLeft:7+item.level*9}} onClick={()=>document.getElementById("block-"+item.id.split("-")[0])?.scrollIntoView({behavior:"smooth",block:"center"})}>{item.text}</button>):<div className="side-empty">Add Markdown headings such as # Heading or ## Section to build an outline.</div>}</div>}
         {rightPanel==="tags"&&<div className="side-content"><h4>All tags</h4>{allTags.map(([tag,count])=><button className="tag-row" key={tag} onClick={()=>setQuery("#"+tag)}><Hash size={12}/>{tag}<span>{count}</span></button>)}</div>}
       </aside>}
 
       <input ref={photos} className="hidden-file" type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
       <input ref={camera} className="hidden-file" type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)void insertImage(f);e.target.value=""}}/>
+      <input ref={importFile} className="hidden-file" type="file" accept=".md,text/markdown" onChange={e=>{const f=e.target.files?.[0];if(f)void importMarkdown(f).catch(()=>setStatus("Import failed"));e.target.value=""}}/>
 
       {sheet&&<div className="modal-backdrop" onClick={()=>setSheet(null)}><div className="image-sheet" onClick={e=>e.stopPropagation()}><div className="grabber"/><div className="sheet-title"><b>{sheet.mode==="replace"?"Replace screenshot":"Add screenshot"}</b><button onClick={()=>setSheet(null)}><X size={16}/></button></div><button onClick={()=>{imageTarget.current=sheet;setSheet(null);camera.current?.click()}}><CameraIcon/><span><b>Camera</b><small>Capture an image</small></span></button><button onClick={()=>{imageTarget.current=sheet;setSheet(null);photos.current?.click()}}><ImagePlus size={19}/><span><b>Photos</b><small>Choose from your device</small></span></button></div></div>}
 
