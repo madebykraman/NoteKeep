@@ -124,7 +124,6 @@ export default function Home() {
   const photos = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
   const target = useRef<ImageTarget | null>(null);
-  const activeBlock = useRef<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const note = notes.find(n => n.id === id) ?? notes[0];
@@ -569,9 +568,6 @@ export default function Home() {
                       updateBlock(block.id, event.target.value);
                     }}
                     onPaste={event => void handlePaste(event, block.id)}
-                    onFocus={() => {
-                      activeBlock.current = block.id;
-                    }}
                     placeholder={index === 0 ? "Start writing…" : "Write something…"}
                     rows={1}
                     spellCheck
