@@ -121,7 +121,7 @@ export default function Home() {
   const [leftOpen, setLeftOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [imageViewer, setImageViewer] = useState<string | null>(null);
-  const [mobileSheet, setMobileSheet] = useState<"more" | "search" | "tabs" | null>(null);
+  const [mobileSheet, setMobileSheet] = useState<"more" | "search" | "tabs" | "backlinks" | null>(null);
   const [mobileImageMenu, setMobileImageMenu] = useState<string | null>(null);
   const [readingMode, setReadingMode] = useState(false);
   const [editorFocused, setEditorFocused] = useState(false);
@@ -783,7 +783,7 @@ export default function Home() {
               <div className="document">
                 {active.blocks.map((block, index) => block.type === "text" ? (
                   <section className="text-block" key={block.id}>
-                    <textarea id={"block-"+block.id} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>
+                    <textarea readOnly={readingMode} id={"block-"+block.id} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>
                     <div className="block-tools">
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"insert"};setSheet({blockId:block.id,mode:"insert"})}} title="Insert image"><ImagePlus size={14}/></button>
                       <button onClick={()=>insertText(block.id)} title="New paragraph"><Plus size={14}/></button>
@@ -878,13 +878,23 @@ export default function Home() {
       {mobileSheet === "more" && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
         <div className="mobile-action-sheet" onClick={e=>e.stopPropagation()}>
           <div className="sheet-grabber"/><div className="mobile-sheet-title">{active.title || "Untitled"}</div>
-          <button onClick={()=>{setMobileSheet(null);setRightOpen(true);setRightPanel("backlinks")}}><Link2/><span>Backlinks in document</span></button>
-          <button onClick={()=>{setMobileSheet(null);setReadingMode(v=>!v)}}><BookOpen/><span>{readingMode ? "Edit note" : "Reading view"}</span></button>
-          <button onClick={()=>{setMobileSheet(null);setSourceMode(v=>!v)}}><Command/><span>{sourceMode ? "Live editor" : "Source mode"}</span></button>
-          <button onClick={()=>{setMobileSheet(null);setTimeout(()=>document.querySelector<HTMLInputElement>(".note-title")?.focus(),50)}}><FilePenLine/><span>Rename…</span></button>
-          <button onClick={()=>{setMobileSheet(null);setMobileSheet("search")}}><Search/><span>Find…</span></button>
+          <button onClick={()=>setMobileSheet("backlinks")}><Link2/><span>Backlinks in document</span></button>
+          <button onClick={()=>{setMobileSheet(null);setSourceMode(false);setReadingMode(v=>!v)}}><BookOpen/><span>{readingMode ? "Edit note" : "Reading view"}</span></button>
+          <button onClick={()=>{setMobileSheet(null);setReadingMode(false);setSourceMode(v=>!v)}}><Command/><span>{sourceMode ? "Live editor" : "Source mode"}</span></button>
+          <button onClick={()=>{setMobileSheet(null);setReadingMode(false);setTimeout(()=>document.querySelector<HTMLInputElement>(".note-title")?.focus(),50)}}><FilePenLine/><span>Rename…</span></button>
+          <button onClick={()=>{setMobileSheet("search")}}><Search/><span>Find…</span></button>
+          <button onClick={()=>{setMobileSheet(null);setCommandOpen(true)}}><Command/><span>Command palette</span></button>
+          <button onClick={()=>{setMobileSheet(null);setGraphOpen(true)}}><GitBranch/><span>Graph view</span></button>
+          <button onClick={()=>{setMobileSheet(null);const title=new Date().toISOString().slice(0,10);const existing=notes.find(n=>n.title===title);if(existing)openNote(existing,true);else void createNote(title)}}><CalendarDays/><span>Daily note</span></button>
           <button onClick={()=>{setMobileSheet(null);void shareNote()}}><Share2/><span>Share note</span></button>
           <button className="danger" onClick={()=>{setMobileSheet(null);void deleteNote()}}><Trash2/><span>Delete note</span></button>
+        </div>
+      </div>}
+
+      {mobileSheet === "backlinks" && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
+        <div className="mobile-action-sheet" onClick={e=>e.stopPropagation()}>
+          <div className="sheet-grabber"/><div className="mobile-sheet-title">Backlinks in document</div>
+          {incoming.length ? incoming.map(n=><button key={n.id} onClick={()=>{openNote(n);setMobileSheet(null)}}><Link2/><span>{n.title || "Untitled"}</span></button>) : <div className="mobile-sheet-empty">No notes link to this document yet.</div>}
         </div>
       </div>}
 
