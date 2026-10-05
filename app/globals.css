@@ -7,7 +7,7 @@
 html,body{margin:0;min-height:100%;background:var(--bg-deep);color:var(--text);font-family:var(--font-geist-sans),Geist,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 body{min-height:100svh}button,input,textarea{font:inherit;outline:none}button{color:inherit;touch-action:manipulation}
 .loading{height:100svh;display:grid;place-items:center;background:var(--bg-deep);color:var(--text-2);font-size:13px}.loading>div{display:flex;align-items:center;gap:10px}.loading-mark{width:12px;height:12px;border-radius:3px;background:var(--accent);box-shadow:0 0 18px rgba(143,156,255,.35)}
-.obsidian-app{height:100svh;display:flex;overflow:hidden;background:radial-gradient(900px 520px at 50% -15%,rgba(101,91,255,.10),transparent 62%),radial-gradient(700px 420px at 100% 100%,rgba(38,132,255,.055),transparent 65%),var(--bg-deep);font-size:12px;position:relative}.obsidian-app:before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(115deg,rgba(255,255,255,.018),transparent 28%,rgba(143,156,255,.018) 70%,transparent);z-index:0}.left-sidebar,.main-area,.right-sidebar{position:relative;z-index:1}
+.obsidian-app{height:100dvh;min-height:100dvh;display:flex;overflow:hidden;background:radial-gradient(900px 520px at 50% -15%,rgba(101,91,255,.10),transparent 62%),radial-gradient(700px 420px at 100% 100%,rgba(38,132,255,.055),transparent 65%),var(--bg-deep);font-size:12px;position:relative}.obsidian-app:before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(115deg,rgba(255,255,255,.018),transparent 28%,rgba(143,156,255,.018) 70%,transparent);z-index:0}.left-sidebar,.main-area,.right-sidebar{position:relative;z-index:1}
 
 /* left workspace */
 .left-sidebar{width:276px;background:linear-gradient(180deg,rgba(35,35,35,.98),rgba(26,26,26,.99) 72%,rgba(21,21,21,.99));flex:0 0 276px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
@@ -24,12 +24,12 @@ body{min-height:100svh}button,input,textarea{font:inherit;outline:none}button{co
 
 /* center chrome */
 .main-area{min-width:0;flex:1;display:flex;flex-direction:column;background:radial-gradient(720px 480px at 50% 0%,rgba(110,98,255,.045),transparent 70%),var(--editor)}
-.appbar{height:38px;flex:none;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 7px;background:#181818}.appbar-left,.appbar-actions{display:flex;align-items:center;gap:2px}.chrome-icon{width:29px;height:29px}.chrome-icon.danger:hover{color:var(--danger)}.breadcrumbs{display:flex;gap:7px;align-items:center;margin-left:5px;color:#666;font-size:10px}.breadcrumbs b{color:#aaa;font-weight:500}.save-label{font-size:9px;color:#5d5d5d;margin-right:5px}.save-label.saving{color:#a59b68}
-.tabs{height:35px;background:#151515;border-bottom:1px solid var(--border);display:flex;overflow:hidden}.tab-strip{display:flex;min-width:0;overflow:auto}.tab{height:35px;min-width:145px;max-width:220px;padding:0 8px 0 10px;border:0;border-right:1px solid var(--border);border-bottom:2px solid transparent;background:#191919;color:#737373;display:flex;align-items:center;gap:7px;cursor:pointer}.tab.active{background:#1d1d1d;color:#c8c8c8;border-bottom-color:var(--accent)}.tab span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tab i{margin-left:auto;width:20px;height:20px;display:grid;place-items:center;border-radius:4px;font-style:normal}.tab i:hover{background:#2d2d2d;color:#ddd}.new-tab{width:35px;flex:none;border:0;background:transparent;color:#666;display:grid;place-items:center;cursor:pointer}.new-tab:hover{color:#bbb;background:#242424}
+.appbar{height:42px;flex:none;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 7px;background:#181818}.appbar-left,.appbar-actions{display:flex;align-items:center;gap:2px}.chrome-icon{width:29px;height:29px}.chrome-icon.danger:hover{color:var(--danger)}.breadcrumbs{display:flex;gap:7px;align-items:center;margin-left:5px;color:#666;font-size:10px}.breadcrumbs b{color:#aaa;font-weight:500}.save-label{font-size:9px;color:#5d5d5d;margin-right:5px}.save-label.saving{color:#a59b68}
+.tabs{height:37px;background:#151515;border-bottom:1px solid var(--border);display:flex;overflow:hidden}.tab-strip{display:flex;min-width:0;overflow:auto}.tab{height:37px;min-width:145px;max-width:220px;padding:0 8px 0 10px;border:0;border-right:1px solid var(--border);border-bottom:2px solid transparent;background:#191919;color:#737373;display:flex;align-items:center;gap:7px;cursor:pointer}.tab.active{background:#1d1d1d;color:#c8c8c8;border-bottom-color:var(--accent)}.tab span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tab i{margin-left:auto;width:20px;height:20px;display:grid;place-items:center;border-radius:4px;font-style:normal}.tab i:hover{background:#2d2d2d;color:#ddd}.new-tab{width:35px;flex:none;border:0;background:transparent;color:#666;display:grid;place-items:center;cursor:pointer}.new-tab:hover{color:#bbb;background:#242424}
 
 /* editor */
-.editor-wrap{flex:1;min-height:0;overflow:auto;background:var(--editor)}.note-editor{width:min(860px,100%);margin:0 auto;padding:74px 54px 100px;min-height:100%;will-change:transform}
-.note-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:22px}.note-actions{display:flex;gap:2px;flex:none}.note-title{width:100%;border:0;background:transparent;color:#e4e4e4;font-size:38px;line-height:1.1;letter-spacing:-.045em;font-weight:650;padding:0}.note-title::placeholder{color:#565656}.more-note{width:32px;height:32px;flex:none;border:0;background:transparent;color:#555;display:grid;place-items:center;border-radius:5px}.more-note:hover{background:#272727;color:#aaa}
+.editor-wrap{flex:1;min-height:0;overflow:auto;background:var(--editor)}.note-editor{width:min(900px,100%);margin:0 auto;padding:68px 56px 110px;min-height:100%;will-change:transform}
+.note-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:22px}.note-actions{display:flex;gap:2px;flex:none;position:relative}.note-title{width:100%;border:0;background:transparent;color:#ececec;font-size:40px;line-height:1.1;letter-spacing:-.045em;font-weight:650;padding:0}.note-title::placeholder{color:#565656}.more-note{width:32px;height:32px;flex:none;border:0;background:transparent;color:#555;display:grid;place-items:center;border-radius:5px}.more-note:hover{background:#272727;color:#aaa}
 .properties-inline{display:flex;flex-wrap:wrap;gap:5px;margin:-7px 0 25px;padding-bottom:14px;border-bottom:1px solid #282828}.properties-inline span{display:inline-flex;align-items:center;gap:6px;padding:4px 7px;background:#202020;border:1px solid #2b2b2b;border-radius:4px;color:#8d8d8d;font-size:9px}.properties-inline b{color:#aaa;font-weight:500}.properties-inline em{font-style:normal;color:#777}
 .document{display:flex;flex-direction:column}.text-block,.image-block{position:relative}.text-block textarea,.image-block textarea{display:block;width:100%;border:0;background:transparent;color:#cfcfcf;resize:none;overflow:hidden;scrollbar-width:none;font-size:16px;line-height:1.82;letter-spacing:-.006em}.text-block textarea::-webkit-scrollbar,.image-block textarea::-webkit-scrollbar{display:none}.text-block textarea{min-height:30px;padding:0 0 13px}.text-block textarea::placeholder,.image-block textarea::placeholder{color:#535353}.text-block textarea:focus,.image-block textarea:focus{color:#e0e0e0}
 .block-tools{position:absolute;right:-44px;top:0;display:flex;gap:2px;opacity:0;pointer-events:none;transform:translateX(-3px);transition:.15s ease}.text-block:hover .block-tools,.text-block:focus-within .block-tools{opacity:1;pointer-events:auto;transform:none}.block-tools button{width:28px;height:27px;border:1px solid #303030;background:#222;color:#777;border-radius:5px;display:grid;place-items:center;cursor:pointer}.block-tools button:hover{color:#ccc;border-color:#444}
@@ -53,3 +53,41 @@ body{min-height:100svh}button,input,textarea{font:inherit;outline:none}button{co
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 
 .note-title,.text-block textarea,.image-block textarea{font-family:var(--font-geist-sans),Geist,sans-serif}.source-editor,.statusbar,.vault-search kbd,.file-row small{font-family:var(--font-geist-mono),Geist Mono,ui-monospace,monospace}.appbar,.tabs,.statusbar,.vault-head,.right-tabs{backdrop-filter:blur(16px)}
+
+/* export menu */
+.format-pop{position:absolute;right:0;top:calc(100% + 8px);z-index:45;width:190px;padding:6px;background:#222;border:1px solid #393939;border-radius:8px;box-shadow:0 18px 60px rgba(0,0,0,.55)}
+.format-title{padding:7px 8px 6px;color:#666;font:600 9px/1 var(--font-geist-mono),monospace;text-transform:uppercase;letter-spacing:.08em}
+.format-pop button{width:100%;height:34px;border:0;background:transparent;border-radius:5px;color:#aaa;display:flex;align-items:center;justify-content:space-between;padding:0 9px;cursor:pointer;font-size:10px}
+.format-pop button:hover{background:#2d2d2d;color:#eee}
+.format-pop button small{font:9px var(--font-geist-mono),monospace;color:#5f5f5f}
+.format-pop button:hover small{color:#888}
+
+/* mobile workspace */
+@media(max-width:800px){
+  .obsidian-app{height:100dvh;min-height:100dvh}
+  .main-area{width:100%;min-width:0}
+  .left-sidebar{width:min(320px,88vw);height:100dvh;inset:0 auto 0 0;border-right:1px solid #3a3a3a;box-shadow:24px 0 80px rgba(0,0,0,.58)}
+  .vault-head{height:52px;padding-left:16px}
+  .ribbon{height:42px}
+  .vault-search{height:36px;margin:10px 12px 8px}
+  .editor-wrap{-webkit-overflow-scrolling:touch}
+  .note-editor{width:100%;padding:34px 18px 84px}
+  .note-head{gap:8px;margin-bottom:18px}
+  .note-title{font-size:31px;line-height:1.08;letter-spacing:-.035em}
+  .more-note{width:34px;height:34px}
+  .text-block textarea,.image-block textarea{font-size:16px;line-height:1.72}
+  .block-tools{position:static;opacity:1;pointer-events:auto;transform:none;height:30px;margin:-2px 0 6px}
+  .block-tools button{width:30px;height:30px}
+  .insert-line{margin-top:12px;padding-top:10px}
+  .appbar{height:44px;padding:0 8px}
+  .breadcrumbs{margin-left:2px;max-width:55vw;overflow:hidden}
+  .breadcrumbs span{display:none}
+  .breadcrumbs b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .save-label{display:none}
+  .tabs{height:38px}
+  .tab{height:38px;min-width:145px;max-width:205px}
+  .statusbar{height:25px;padding-bottom:env(safe-area-inset-bottom);box-sizing:content-box}
+  .statusbar .zoom{display:none}
+  .format-pop{position:fixed;right:12px;top:96px;width:205px}
+  .properties-pop{position:fixed;right:12px;top:94px;width:min(360px,calc(100vw - 24px))}
+}
