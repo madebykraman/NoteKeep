@@ -279,15 +279,13 @@ export default function Home() {
     (async () => {
       let all = await getNotes();
 
-      // Never seed demo/sample content. Remove only NoteKeep's old bootstrap note.
-      const seeded = all.filter(n =>
-        n.title === "Welcome to NoteKeep" &&
-        n.path === "Welcome to NoteKeep.md" &&
-        n.blocks.length === 1 &&
-        n.blocks[0].type === "text" &&
-        n.blocks[0].text === "A local-first knowledge base with Obsidian-style links and your visual screenshot workflow.\n\nTry [[Daily Notes]], add #ideas, or paste a screenshot directly into this note."
-      );
-      for (const n of seeded) await del("notes", n.id);
+      // Never seed demo/sample content. Remove NoteKeep's old bootstrap note,
+      // including any screenshots added while testing that default note.
+      const seeded = all.filter(n => n.title === "Welcome to NoteKeep" && n.path === "Welcome to NoteKeep.md");
+      for (const n of seeded) {
+        for (const b of n.blocks) if (b.type === "image") await del("images", b.imageId);
+        await del("notes", n.id);
+      }
       all = all.filter(n => !seeded.some(x => x.id === n.id));
 
       if (!all.length) {
