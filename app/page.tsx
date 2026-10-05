@@ -130,6 +130,7 @@ export default function Home() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"Editor" | "Appearance" | "Files & Links" | "Core plugins" | "Hotkeys" | "About">("Editor");
   const [graphOpen, setGraphOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [sourceMode, setSourceMode] = useState(false);
@@ -847,12 +848,28 @@ export default function Home() {
           <Dialog.Overlay className="settings-overlay"/>
           <Dialog.Content className="settings-modal" aria-describedby={undefined}>
             <Dialog.Title className="sr-only">NoteKeep Settings</Dialog.Title>
-            <div className="settings-nav"><b>Settings</b>{["Editor","Appearance","Files & Links","Core plugins","Hotkeys","About"].map((x,i)=><button className={i===0?"active":""} key={x}>{x}</button>)}</div>
-            <div className="settings-main"><div className="settings-top"><div><small>SETTINGS</small><h2>Editor</h2></div><Dialog.Close asChild><button aria-label="Close settings"><X size={17}/></button></Dialog.Close></div>
-              <label className="setting-toggle"><span><b>Live Preview</b><small>Render Markdown while you type.</small></span><input type="checkbox" defaultChecked/></label>
-              <label className="setting-toggle"><span><b>Spellcheck</b><small>Check spelling in note editors.</small></span><input type="checkbox" defaultChecked/></label>
-              <label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" defaultChecked/></label>
-              <div className="settings-note">NoteKeep keeps the vault local to this browser. No account or server is required.</div>
+            <div className="settings-nav"><b>Settings</b>{["Editor","Appearance","Files & Links","Core plugins","Hotkeys","About"].map(x=><button className={settingsTab===x?"active":""} key={x} onClick={()=>setSettingsTab(x as typeof settingsTab)}>{x}</button>)}</div>
+            <div className="settings-main"><div className="settings-top"><div><small>SETTINGS</small><h2>{settingsTab}</h2></div><Dialog.Close asChild><button aria-label="Close settings"><X size={17}/></button></Dialog.Close></div>
+              {settingsTab==="Editor" && <>
+                <label className="setting-toggle"><span><b>Live Preview</b><small>Render Markdown while you type.</small></span><input type="checkbox" defaultChecked/></label>
+                <label className="setting-toggle"><span><b>Spellcheck</b><small>Use the browser spelling engine.</small></span><input type="checkbox" defaultChecked/></label>
+                <label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" defaultChecked/></label>
+              </>}
+              {settingsTab==="Appearance" && <>
+                <div className="settings-note"><b>Dark graphite</b><br/>The mobile-first NoteKeep theme uses layered semantic surfaces, Geist typography and a restrained accent.</div>
+                <label className="setting-toggle"><span><b>Compact interface</b><small>Reduce secondary chrome and keep writing dominant.</small></span><input type="checkbox" defaultChecked/></label>
+              </>}
+              {settingsTab==="Files & Links" && <>
+                <div className="settings-note"><b>Local vault</b><br/>Notes and screenshot attachments are stored in this browser's IndexedDB. Markdown imports, exports and portable ZIP bundles are supported.</div>
+                <div className="settings-note"><b>Links</b><br/>Use [[Note Name]] for wikilinks. Unresolved links can create a new note from the Backlinks panel.</div>
+              </>}
+              {settingsTab==="Core plugins" && <>
+                {["Search","Command palette","Graph view","Properties","Backlinks","Daily notes","Source mode"].map(x=><div className="setting-row" key={x}><b>{x}</b><span>Enabled</span></div>)}
+              </>}
+              {settingsTab==="Hotkeys" && <>
+                {["⌘ / Ctrl + P — Command palette","⌘ / Ctrl + K — Search","⌘ / Ctrl + N — New note","⌘ / Ctrl + O — Import file","Escape — Close overlays"].map(x=><div className="setting-row" key={x}><span>{x}</span></div>)}
+              </>}
+              {settingsTab==="About" && <div className="settings-note"><b>NoteKeep</b><br/>Local-first notes with an Obsidian-style knowledge foundation and contextual screenshot commentary.<br/><br/>No account, sync service or cloud vault is required.</div>}
             </div>
           </Dialog.Content>
         </Dialog.Portal>
