@@ -21,7 +21,7 @@ const migrate=(n:any):Note=>({...n,imageIds:Array.isArray(n.imageIds)?n.imageIds
 function dateLabel(ts:number){const d=new Date(ts),now=new Date();return d.toDateString()===now.toDateString()?"Today":d.toLocaleDateString(undefined,{month:"short",day:"numeric"})}
 
 export default function Home(){
- const [notes,setNotes]=useState<Note[]>([]),[activeId,setActiveId]=useState(""),[query,setQuery]=useState(""),[urls,setUrls]=useState<Record<string,string>>({}),[selectedImage,setSelectedImage]=useState(0),[ready,setReady]=useState(false),[review,setReview]=useState(false);
+ const [notes,setNotes]=useState<Note[]>([]),[activeId,setActiveId]=useState(""),[query,setQuery]=useState(""),[urls,setUrls]=useState<Record<string,string>>({}),[selectedImage,setSelectedImage]=useState(0),[ready,setReady]=useState(false),[review,setReview]=useState(false),[capture,setCapture]=useState(false);
  const fileRef=useRef<HTMLInputElement>(null), active=notes.find(n=>n.id===activeId)??notes[0];
  useEffect(()=>{(async()=>{try{let list=(await getNotes()).map(migrate);if(!list.length){await putNote(starter);list=[starter]}list.sort((a,b)=>b.updatedAt-a.updatedAt);setNotes(list);setActiveId(list[0].id)}catch{setNotes([starter]);setActiveId(starter.id)}finally{setReady(true)}})()},[]);
  useEffect(()=>{let dead=false;const created:string[]=[];(async()=>{const next:Record<string,string>={};for(const id of active?.imageIds??[]){const b=await getImage(id);if(b&&!dead){const u=URL.createObjectURL(b);next[id]=u;created.push(u)}}if(!dead)setUrls(next)})().catch(()=>{});return()=>{dead=true;created.forEach(URL.revokeObjectURL)}},[active?.id,active?.imageIds]);
@@ -45,9 +45,9 @@ export default function Home(){
    <div className="editor">
     <input className="title" value={active.title} onChange={e=>void save({title:e.target.value})} placeholder="Untitled note"/>
     <div className="grid">
-     <div className={"visual "+(!currentUrl?"empty":"")}>{currentUrl?<div className={"image "+(/\.(png|jpg|jpeg|webp)$/i.test(currentUrl)?"":"")}><img src={currentUrl} alt="Attached reference"/></div>:<button className="drop" onClick={()=>fileRef.current?.click()}><ImagePlus size={23}/><b>Add an image</b><span>Tap to choose photos or use the camera</span></button>}</div>
+     <div className={"visual "+(!currentUrl?"empty":"")}>{currentUrl?<div className={"image "+(/\.(png|jpg|jpeg|webp)$/i.test(currentUrl)?"":"")}><img src={currentUrl} alt="Attached reference"/></div>:<button className="drop" onClick={()=>setCapture(true)}><ImagePlus size={23}/><b>Add an image</b><span>Take a photo or choose from Photos</span></button>}</div>
      {active.imageIds.length>1&&<div className="filmstrip">{active.imageIds.map((id,i)=><div className={"thumb "+(i===selectedImage?"selected":"")} key={id}><button onClick={()=>setSelectedImage(i)}>{urls[id]?<img src={urls[id]} alt=""/>:<span/>}</button><button className="thumb-remove" onClick={()=>void removeImage(id)} aria-label="Remove image"><X size={12}/></button></div>)}</div>}
-     <div className="write"><textarea value={active.body} onChange={e=>void save({body:e.target.value})} placeholder="Write your note…" autoCapitalize="sentences" autoCorrect="on" spellCheck/><div className="footer"><button onClick={()=>fileRef.current?.click()}><ImagePlus size={16}/> Add image</button><div className="footer-right"><button onClick={()=>void exportPNG()}><Download size={16}/> PNG</button><button onClick={()=>setReview(true)}>Review</button><span>Saved locally</span></div></div></div>
+     <div className="write"><textarea value={active.body} onChange={e=>void save({body:e.target.value})} placeholder="Write your note…" autoCapitalize="sentences" autoCorrect="on" spellCheck/><div className="footer"><button onClick={()=>setCapture(true)}><ImagePlus size={16}/> Add image</button><div className="footer-right"><button onClick={()=>void exportPNG()}><Download size={16}/> PNG</button><button onClick={()=>setReview(true)}>Review</button><span>Saved locally</span></div></div></div>
     </div>
    </div>
    <input ref={fileRef} hidden type="file" accept="image/*" capture="environment" multiple onChange={onFile}/>
