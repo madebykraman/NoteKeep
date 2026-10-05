@@ -1309,3 +1309,55 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
   .opal-ui .settings-nav button{height:40px;padding:0 8px;gap:8px}
   .opal-ui .settings-nav-icon{width:22px;height:22px}
 }
+
+
+
+/* PWA / standalone interaction layer */
+:root{
+  --mobile-safe-top:env(safe-area-inset-top,0px);
+  --mobile-safe-bottom:env(safe-area-inset-bottom,0px);
+}
+html{
+  background:var(--bg-deep,#0f1013);
+  overscroll-behavior:none;
+}
+body{
+  min-height:100dvh;
+  margin:0;
+  overscroll-behavior:none;
+}
+button,input,textarea{
+  -webkit-tap-highlight-color:transparent;
+}
+button{
+  touch-action:manipulation;
+}
+@media(display-mode:standalone){
+  html,body{
+    width:100%;
+    min-height:100dvh;
+    overflow:hidden;
+  }
+  body{
+    background:var(--bg-deep,#0f1013);
+  }
+  .opal-ui{
+    min-height:100dvh;
+  }
+}
+@media(max-width:800px){
+  .opal-ui .mobile-chrome{
+    padding-top:var(--mobile-safe-top);
+  }
+  .opal-ui .mobile-action-sheet,
+  .opal-ui .mobile-search-sheet,
+  .opal-ui .mobile-tabs-panel{
+    padding-bottom:var(--mobile-safe-bottom);
+  }
+  .opal-ui .note-editor{
+    padding-bottom:calc(120px + var(--mobile-safe-bottom));
+  }
+  .opal-ui .statusbar{
+    padding-bottom:var(--mobile-safe-bottom);
+  }
+}
