@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, ClipboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { FilePlus2, ImagePlus, MoreHorizontal, Search, Trash2, X, Download, Share2 } from "lucide-react";
+import { FilePlus2, ImagePlus, MoreHorizontal, Search, Trash2, X, Download, Share2, Menu, ChevronLeft } from "lucide-react";
 
 type Note={id:string;title:string;body:string;imageIds:string[];updatedAt:number};
 type StoredImage={id:string;blob:Blob};
@@ -21,7 +21,7 @@ const migrate=(n:any):Note=>({...n,imageIds:Array.isArray(n.imageIds)?n.imageIds
 function dateLabel(ts:number){const d=new Date(ts),now=new Date();return d.toDateString()===now.toDateString()?"Today":d.toLocaleDateString(undefined,{month:"short",day:"numeric"})}
 
 export default function Home(){
- const [notes,setNotes]=useState<Note[]>([]),[activeId,setActiveId]=useState(""),[query,setQuery]=useState(""),[urls,setUrls]=useState<Record<string,string>>({}),[selectedImage,setSelectedImage]=useState(0),[ready,setReady]=useState(false),[review,setReview]=useState(false),[capture,setCapture]=useState(false);
+ const [notes,setNotes]=useState<Note[]>([]),[activeId,setActiveId]=useState(""),[query,setQuery]=useState(""),[urls,setUrls]=useState<Record<string,string>>({}),[selectedImage,setSelectedImage]=useState(0),[ready,setReady]=useState(false),[review,setReview]=useState(false),[capture,setCapture]=useState(false),[notesOpen,setNotesOpen]=useState(false);
  const fileRef=useRef<HTMLInputElement>(null), active=notes.find(n=>n.id===activeId)??notes[0];
  useEffect(()=>{(async()=>{try{let list=(await getNotes()).map(migrate);if(!list.length){await putNote(starter);list=[starter]}list.sort((a,b)=>b.updatedAt-a.updatedAt);setNotes(list);setActiveId(list[0].id)}catch{setNotes([starter]);setActiveId(starter.id)}finally{setReady(true)}})()},[]);
  useEffect(()=>{let dead=false;const created:string[]=[];(async()=>{const next:Record<string,string>={};for(const id of active?.imageIds??[]){const b=await getImage(id);if(b&&!dead){const u=URL.createObjectURL(b);next[id]=u;created.push(u)}}if(!dead)setUrls(next)})().catch(()=>{});return()=>{dead=true;created.forEach(URL.revokeObjectURL)}},[active?.id,active?.imageIds]);
@@ -39,15 +39,15 @@ export default function Home(){
  if(!ready)return <main className="loading">NoteKeep</main>;
  const currentId=active?.imageIds[selectedImage]; const currentUrl=currentId?urls[currentId]:undefined;
  return <main className="app" onPaste={onPaste}>
-  <aside className="sidebar"><div className="brand">NoteKeep</div><button className="new" onClick={()=>void createNote()}><FilePlus2 size={17}/> New note</button><label className="search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search notes"/></label><div className="label">Notes</div><div className="list">{filtered.map(n=><button key={n.id} className={"item "+(n.id===active.id?"active":"")} onClick={()=>{setActiveId(n.id);setSelectedImage(0)}}><b>{n.title||"Untitled note"}</b><span>{dateLabel(n.updatedAt)} · {n.body.replace(/\n/g," ").slice(0,42)||"Empty note"}</span></button>)}</div></aside>
+  <aside className={"sidebar "+(notesOpen?"open":"")}><div className="brand"><span>NoteKeep</span><button className="mobile-close" aria-label="Close notes" onClick={()=>setNotesOpen(false)}><ChevronLeft size={19}/></button></div><button className="new" onClick={()=>void createNote()}><FilePlus2 size={17}/> New note</button><label className="search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search notes"/></label><div className="label">Notes</div><div className="list">{filtered.map(n=><button key={n.id} className={"item "+(n.id===active.id?"active":"")} onClick={()=>{setActiveId(n.id);setSelectedImage(0);setNotesOpen(false)}}><b>{n.title||"Untitled note"}</b><span>{dateLabel(n.updatedAt)} · {n.body.replace(/\n/g," ").slice(0,42)||"Empty note"}</span></button>)}</div></aside>
   <section className="workspace">
-   <header><div className="crumb">{active.title||"Untitled note"}</div><div className="actions">{<button aria-label="Review" onClick={()=>setReview(true)}><Share2 size={18}/></button>}{active.imageIds.length>0&&<button aria-label="Remove image" onClick={()=>{const id=active.imageIds[selectedImage];if(id)void removeImage(id)}}><X size={18}/></button>}<button aria-label="Delete note" onClick={()=>void remove()}><Trash2 size={18}/></button><button aria-label="More"><MoreHorizontal size={18}/></button></div></header>
+   <header><button className="mobile-menu" aria-label="Open notes" onClick={()=>setNotesOpen(true)}><Menu size={20}/></button><div className="crumb">{active.title||"Untitled note"}</div><div className="actions">{<button aria-label="Review" onClick={()=>setReview(true)}><Share2 size={18}/></button>}{active.imageIds.length>0&&<button aria-label="Remove image" onClick={()=>{const id=active.imageIds[selectedImage];if(id)void removeImage(id)}}><X size={18}/></button>}<button aria-label="Delete note" onClick={()=>void remove()}><Trash2 size={18}/></button><button aria-label="More"><MoreHorizontal size={18}/></button></div></header>
    <div className="editor">
     <input className="title" value={active.title} onChange={e=>void save({title:e.target.value})} placeholder="Untitled note"/>
     <div className="grid">
      <div className={"visual "+(!currentUrl?"empty":"")}>{currentUrl?<div className={"image "+(/\.(png|jpg|jpeg|webp)$/i.test(currentUrl)?"":"")}><img src={currentUrl} alt="Attached reference"/></div>:<button className="drop" onClick={()=>setCapture(true)}><ImagePlus size={23}/><b>Add an image</b><span>Take a photo or choose from Photos</span></button>}</div>
      {active.imageIds.length>1&&<div className="filmstrip">{active.imageIds.map((id,i)=><div className={"thumb "+(i===selectedImage?"selected":"")} key={id}><button onClick={()=>setSelectedImage(i)}>{urls[id]?<img src={urls[id]} alt=""/>:<span/>}</button><button className="thumb-remove" onClick={()=>void removeImage(id)} aria-label="Remove image"><X size={12}/></button></div>)}</div>}
-     <div className="write"><textarea value={active.body} onChange={e=>void save({body:e.target.value})} placeholder="Write your note…" autoCapitalize="sentences" autoCorrect="on" spellCheck/><div className="footer"><button onClick={()=>setCapture(true)}><ImagePlus size={16}/> Add image</button><div className="footer-right"><button onClick={()=>void exportPNG()}><Download size={16}/> PNG</button><button onClick={()=>setReview(true)}>Review</button><span>Saved locally</span></div></div></div>
+     <div className="write"><textarea value={active.body} onChange={e=>void save({body:e.target.value})} placeholder="Write your note…" autoCapitalize="sentences" autoCorrect="on" spellCheck/><div className="footer"><button onClick={()=>setCapture(true)}><ImagePlus size={16}/> Add image</button><div className="footer-right"><button onClick={()=>void exportPNG()}><Download size={16}/> Export</button><button onClick={()=>setReview(true)}>Review</button><span>Saved locally</span></div></div></div>
     </div>
    </div>
    <input ref={fileRef} hidden type="file" accept="image/*" capture="environment" multiple onChange={onFile}/>
