@@ -150,6 +150,25 @@ export default function Home() {
   const imageTarget = useRef<typeof sheet>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("notekeep-preferences") || "{}");
+      if (typeof saved.spellcheck === "boolean") setSpellcheckEnabled(saved.spellcheck);
+      if (typeof saved.inlineProperties === "boolean") setInlinePropertiesEnabled(saved.inlineProperties);
+      if (typeof saved.compactInterface === "boolean") setCompactInterface(saved.compactInterface);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("notekeep-preferences", JSON.stringify({
+        spellcheck: spellcheckEnabled,
+        inlineProperties: inlinePropertiesEnabled,
+        compactInterface
+      }));
+    } catch {}
+  }, [spellcheckEnabled, inlinePropertiesEnabled, compactInterface]);
+
   const active = notes.find(n => n.id === activeId) || notes[0];
   const visibleNotes = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -345,6 +364,33 @@ export default function Home() {
     } else {
       await navigator.clipboard?.writeText(text);
       setStatus("Copied to clipboard");
+    }
+  };
+
+  const shareImage = async (blockId: string) => {
+    const block = active?.blocks.find(b => b.id === blockId);
+    if (!block || block.type !== "image") return;
+    const record = await getImage(block.imageId);
+    if (!record) return;
+    const blob = record.blob;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: active.title || "NoteKeep screenshot",
+          files: [new globalThis.File([blob], "screenshot.png", { type: blob.type || "image/png" })]
+        });
+        setStatus("Shared");
+        return;
+      } catch {}
+    }
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      setStatus("Image copied");
+    } catch {
+      const url = URL.createObjectURL(blob);
+      downloadBlob(blob, "notekeep-screenshot.png");
+      URL.revokeObjectURL(url);
+      setStatus("Saved image");
     }
   };
 
@@ -636,7 +682,15 @@ export default function Home() {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "p") { e.preventDefault(); setCommandOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".command-input")?.focus(), 20); }
-      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setLeftOpen(true); setMobileSheet("search"); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 20); }
+      if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (window.innerWidth <= 800) {
+          setMobileSheet("search");
+        } else {
+          setLeftOpen(true);
+          setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 20);
+        }
+      }
       if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); void createNote(); }
       if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); importFile.current?.click(); }
       if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); setImageViewer(null); setMobileSheet(null); setMobileImageMenu(null); setEditorFocused(false); }
@@ -946,7 +1000,7 @@ export default function Home() {
           <button onClick={()=>{void copyImage(mobileImageMenu);setMobileImageMenu(null)}}><Copy/><span>Copy image</span></button>
           <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"){imageTarget.current={blockId:b.id,mode:"replace"};setSheet({blockId:b.id,mode:"replace"})};setMobileImageMenu(null)}}><ImagePlus/><span>Replace image</span></button>
           <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"&&urls[b.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[b.imageId];a.click()};setMobileImageMenu(null)}}><Download/><span>Save image</span></button>
-          <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"&&urls[b.imageId]&&navigator.share){fetch(urls[b.imageId]).then(r=>r.blob()).then(blob=>navigator.share({files:[new globalThis.File([blob],"screenshot.png",{type:blob.type})]}).catch(()=>{}));}setMobileImageMenu(null)}}><Share2/><span>Share image</span></button>
+          <button onClick={()=>{void shareImage(mobileImageMenu);setMobileImageMenu(null)}}><Share2/><span>Share image</span></button>
           <button className="danger" onClick={()=>{void removeBlock(mobileImageMenu);setMobileImageMenu(null)}}><Trash2/><span>Delete image</span></button>
         </div>
       </div>}
