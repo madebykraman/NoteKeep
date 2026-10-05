@@ -851,7 +851,7 @@ export default function Home() {
         <div className="editor-wrap">
           <article className={"note-editor " + (readingMode ? "reading-mode" : "")} style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
             <div className="note-head">
-              <input readOnly={readingMode} className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" spellCheck={spellcheckEnabled} />
+              {readingMode ? <h1 className="note-title rendered-title">{active.title || "Untitled"}</h1> : <input className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" spellCheck={spellcheckEnabled} />}
               <div className="note-actions">
                 <DropdownMenu.Root open={formatOpen} onOpenChange={setFormatOpen}>
                   <DropdownMenu.Trigger asChild>
