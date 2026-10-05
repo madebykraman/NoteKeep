@@ -714,9 +714,9 @@ export default function Home() {
         </div>
 
         <div className="editor-wrap">
-          <article className="note-editor" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+          <article className={"note-editor " + (readingMode ? "reading-mode" : "")} style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
             <div className="note-head">
-              <input className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" />
+              <input readOnly={readingMode} className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" />
               <div className="note-actions">
                 <DropdownMenu.Root open={formatOpen} onOpenChange={setFormatOpen}>
                   <DropdownMenu.Trigger asChild>
@@ -793,7 +793,7 @@ export default function Home() {
                   <figure className={"image-block " + (mobileImageMenu === block.id ? "context-open" : "")} key={block.id}>
                     {urls[block.imageId]&&<button className="image-frame" onClick={() => setImageViewer(urls[block.imageId])} aria-label="Open screenshot preview"><img src={urls[block.imageId]} alt="" draggable={false}/><span className="image-open-hint">Open preview</span></button>}
                     <button className="image-context-trigger" onClick={()=>setMobileImageMenu(block.id)} aria-label="Image actions"><MoreHorizontal size={17}/></button>
-                    <textarea ref={resize} value={block.text} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
+                    <textarea readOnly={readingMode} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
                     <figcaption>
                       <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}} title="Save this screenshot"><Download size={13}/> Save image</button>
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"replace"};setSheet({blockId:block.id,mode:"replace"})}}><ImagePlus size={13}/> Replace</button>
