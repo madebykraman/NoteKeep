@@ -429,30 +429,109 @@ export default function Home() {
     }
   };
 
-  const shareImage = async (blockId: string) => {
+  const exportScreenshotImage = async (blockId: string) => {
     const block = active?.blocks.find(b => b.id === blockId);
-    if (!block || block.type !== "image") return;
+    if (!block || block.type !== "image") throw new Error("Screenshot not found.");
     const record = await getImage(block.imageId);
-    if (!record) return;
-    const blob = record.blob;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: active.title || "NoteKeep screenshot",
-          files: [new globalThis.File([blob], "screenshot.png", { type: blob.type || "image/png" })]
-        });
-        setStatus("Shared");
-        return;
-      } catch {}
-    }
+    if (!record) throw new Error("Screenshot data not found.");
+
+    const sourceUrl = URL.createObjectURL(record.blob);
     try {
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      const image = new Image();
+      image.decoding = "async";
+      image.src = sourceUrl;
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("Could not read screenshot."));
+      });
+      await document.fonts?.ready;
+
+      const maxWidth = 1600;
+      const scale = Math.min(1, maxWidth / image.naturalWidth);
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const imageHeight = Math.max(1, Math.round(image.naturalHeight * scale));
+      const commentary = block.text.trim();
+      const padding = Math.max(28, Math.round(width * 0.035));
+      const fontSize = Math.max(22, Math.min(32, Math.round(width * 0.025)));
+      const lineHeight = Math.round(fontSize * 1.45);
+      const textWidth = Math.max(1, width - padding * 2);
+      const font = `500 ${fontSize}px Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas export unavailable.");
+      ctx.font = font;
+
+      const lines: string[] = [];
+      for (const paragraph of (commentary || "").split(/\r?\n/)) {
+        if (!paragraph) {
+          lines.push("");
+          continue;
+        }
+        let line = "";
+        for (const word of paragraph.split(/\s+/)) {
+          const candidate = line ? line + " " + word : word;
+          if (ctx.measureText(candidate).width <= textWidth || !line) {
+            line = candidate;
+          } else {
+            lines.push(line);
+            line = word;
+          }
+        }
+        if (line) lines.push(line);
+      }
+
+      const commentHeight = commentary
+        ? padding * 2 + Math.max(lineHeight, lines.length * lineHeight)
+        : 0;
+      canvas.width = width;
+      canvas.height = imageHeight + commentHeight;
+
+      ctx.fillStyle = "#0b0b10";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, width, imageHeight);
+
+      if (commentary) {
+        const dividerY = imageHeight;
+        ctx.fillStyle = "#262630";
+        ctx.fillRect(0, dividerY, width, 1);
+        ctx.font = font;
+        ctx.fillStyle = "#f3f3f6";
+        ctx.textBaseline = "top";
+        lines.forEach((line, index) => {
+          ctx.fillText(line, padding, imageHeight + padding + index * lineHeight);
+        });
+      }
+
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(value => value ? resolve(value) : reject(new Error("PNG export failed.")), "image/png")
+      );
+      return {
+        blob,
+        filename: `notekeep-${safeFileName(active?.title || "screenshot")}-screenshot.png`
+      };
+    } finally {
+      URL.revokeObjectURL(sourceUrl);
+    }
+  };
+
+  const shareImage = async (blockId: string) => {
+    try {
+      const exported = await exportScreenshotImage(blockId);
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: active?.title || "NoteKeep screenshot",
+            files: [new globalThis.File([exported.blob], exported.filename, { type: "image/png" })]
+          });
+          setStatus("Shared");
+          return;
+        } catch {}
+      }
+      await navigator.clipboard?.write([new ClipboardItem({ "image/png": exported.blob })]);
       setStatus("Image copied");
     } catch {
-      const url = URL.createObjectURL(blob);
-      downloadBlob(blob, "notekeep-screenshot.png");
-      URL.revokeObjectURL(url);
-      setStatus("Saved image");
+      setStatus("Image export unavailable");
     }
   };
 
@@ -955,7 +1034,7 @@ export default function Home() {
                     <button className="image-context-trigger" onClick={()=>setMobileImageMenu(block.id)} aria-label="Image actions"><MoreHorizontal size={17}/></button>
                     {readingMode ? renderMarkdownBlock(block.text, followLink) : <textarea spellCheck={spellcheckEnabled} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>}
                     <figcaption>
-                      <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}} title="Save this screenshot"><Download size={13}/> Save image</button>
+                      <button onClick={()=>void exportScreenshotImage(block.id).then(({blob,filename})=>{downloadBlob(blob,filename);setStatus("Saved image")}).catch(()=>setStatus("Image export unavailable"))} title="Export screenshot with commentary"><Download size={13}/> Save image</button>
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"replace"};setSheet({blockId:block.id,mode:"replace"})}}><ImagePlus size={13}/> Replace</button>
                       <button className="danger" onClick={()=>void removeBlock(block.id)}><Trash2 size={13}/></button>
                     </figcaption>
@@ -1097,7 +1176,7 @@ export default function Home() {
           <div className="sheet-grabber"/><div className="mobile-sheet-title">Screenshot</div>
           <button onClick={()=>{void copyImage(mobileImageMenu);setMobileImageMenu(null)}}><Copy/><span>Copy image</span></button>
           <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"){imageTarget.current={blockId:b.id,mode:"replace"};setSheet({blockId:b.id,mode:"replace"})};setMobileImageMenu(null)}}><ImagePlus/><span>Replace image</span></button>
-          <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"&&urls[b.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[b.imageId];a.click()};setMobileImageMenu(null)}}><Download/><span>Save image</span></button>
+          <button onClick={()=>{void exportScreenshotImage(mobileImageMenu).then(({blob,filename})=>{downloadBlob(blob,filename);setStatus("Saved image")}).catch(()=>setStatus("Image export unavailable"));setMobileImageMenu(null)}}><Download/><span>Save image</span></button>
           <button onClick={()=>{void shareImage(mobileImageMenu);setMobileImageMenu(null)}}><Share2/><span>Share image</span></button>
           <button className="danger" onClick={()=>{void removeBlock(mobileImageMenu);setMobileImageMenu(null)}}><Trash2/><span>Delete image</span></button>
         </div>
