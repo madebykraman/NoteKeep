@@ -296,7 +296,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    void navigator.storage?.persist?.().catch(() => false);
+    void navigator.storage?.persist?.();
   }, []);
 
   useEffect(() => {
