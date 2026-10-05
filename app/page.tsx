@@ -131,6 +131,9 @@ export default function Home() {
   const [commandQuery, setCommandQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"Editor" | "Appearance" | "Files & Links" | "Core plugins" | "Hotkeys" | "About">("Editor");
+  const [spellcheckEnabled, setSpellcheckEnabled] = useState(true);
+  const [inlinePropertiesEnabled, setInlinePropertiesEnabled] = useState(true);
+  const [compactInterface, setCompactInterface] = useState(true);
   const [graphOpen, setGraphOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [sourceMode, setSourceMode] = useState(false);
@@ -614,7 +617,7 @@ export default function Home() {
   const runCommand = (command: string) => {
     setCommandOpen(false); setCommandQuery("");
     if (command === "New note") void createNote();
-    if (command === "Search") { setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search")?.focus(), 30); }
+    if (command === "Search") { setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 30); }
     if (command === "Graph view") setGraphOpen(true);
     if (command === "Export note") setFormatOpen(true);
     if (command === "Import note") importFile.current?.click();
@@ -633,10 +636,10 @@ export default function Home() {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "p") { e.preventDefault(); setCommandOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".command-input")?.focus(), 20); }
-      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setCommandOpen(true); }
+      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setLeftOpen(true); setMobileSheet("search"); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 20); }
       if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); void createNote(); }
-      if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search")?.focus(), 20); }
-      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); setImageViewer(null); }
+      if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); importFile.current?.click(); }
+      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); setImageViewer(null); setMobileSheet(null); setMobileImageMenu(null); setEditorFocused(false); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -648,7 +651,7 @@ export default function Home() {
   if (!ready || !active) return <main className="loading"><div><div className="loading-mark" /><span>NoteKeep</span></div></main>;
 
   return (
-    <main className="obsidian-app">
+    <main className={"obsidian-app " + (compactInterface ? "compact-interface" : "")}>
       <aside className={"left-sidebar " + (leftOpen ? "is-open" : "")}>
         <div className="vault-head">
           <div className="vault-name"><BookOpen size={15} /><span>NoteKeep Vault</span></div>
@@ -663,7 +666,7 @@ export default function Home() {
           <button onClick={() => setCommandOpen(true)} title="Command palette"><Command size={16} /></button>
         </div>
         <label className="vault-search"><Search size={14}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search vault" /><kbd>⌘ K</kbd></label>
-        <div className="explorer-head"><span>EXPLORER</span><div><button onClick={() => void createNote()} title="New note"><Plus size={13}/></button><button title="More"><MoreHorizontal size={13}/></button></div></div>
+        <div className="explorer-head"><span>EXPLORER</span><div><button onClick={() => void createNote()} title="New note"><Plus size={13}/></button></div></div>
         <div className="file-tree">
           <div className="folder-row"><ChevronDown size={13}/><FolderOpen size={14}/><span>Notes</span></div>
           {visibleNotes.map(n => (
@@ -717,7 +720,7 @@ export default function Home() {
         <div className="editor-wrap">
           <article className={"note-editor " + (readingMode ? "reading-mode" : "")} style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
             <div className="note-head">
-              <input readOnly={readingMode} className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" />
+              <input readOnly={readingMode} className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" spellCheck={spellcheckEnabled} />
               <div className="note-actions">
                 <DropdownMenu.Root open={formatOpen} onOpenChange={setFormatOpen}>
                   <DropdownMenu.Trigger asChild>
@@ -742,7 +745,7 @@ export default function Home() {
               </div>
             </div>
 
-            {Object.keys(active.properties).length > 0 && (
+            {inlinePropertiesEnabled && Object.keys(active.properties).length > 0 && (
               <div className="properties-inline">
                 {Object.entries(active.properties).map(([k,v]) => <span key={k}><b>{k}</b><em>{v}</em></span>)}
               </div>
@@ -758,7 +761,7 @@ export default function Home() {
             )}
 
             {sourceMode ? (
-              <textarea readOnly={readingMode} className="source-editor" value={markdownFor(active)} onChange={e => {
+              <textarea readOnly={readingMode} spellCheck={spellcheckEnabled} className="source-editor" value={markdownFor(active)} onChange={e => {
                 const lines = e.target.value.split("\n");
                 let start = 0;
                 const properties: Record<string,string> = {};
@@ -808,7 +811,7 @@ export default function Home() {
               <div className="document">
                 {active.blocks.map((block, index) => block.type === "text" ? (
                   <section className="text-block" key={block.id}>
-                    <textarea readOnly={readingMode} id={"block-"+block.id} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>
+                    <textarea readOnly={readingMode} spellCheck={spellcheckEnabled} id={"block-"+block.id} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>
                     <div className="block-tools">
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"insert"};setSheet({blockId:block.id,mode:"insert"})}} title="Insert image"><ImagePlus size={14}/></button>
                       <button onClick={()=>insertText(block.id)} title="New paragraph"><Plus size={14}/></button>
@@ -819,7 +822,7 @@ export default function Home() {
                   <figure className={"image-block " + (mobileImageMenu === block.id ? "context-open" : "")} key={block.id}>
                     {urls[block.imageId]&&<button className="image-frame" onClick={() => setImageViewer(urls[block.imageId])} aria-label="Open screenshot preview"><img src={urls[block.imageId]} alt="" draggable={false}/><span className="image-open-hint">Open preview</span></button>}
                     <button className="image-context-trigger" onClick={()=>setMobileImageMenu(block.id)} aria-label="Image actions"><MoreHorizontal size={17}/></button>
-                    <textarea readOnly={readingMode} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
+                    <textarea readOnly={readingMode} spellCheck={spellcheckEnabled} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
                     <figcaption>
                       <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}} title="Save this screenshot"><Download size={13}/> Save image</button>
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"replace"};setSheet({blockId:block.id,mode:"replace"})}}><ImagePlus size={13}/> Replace</button>
@@ -876,13 +879,12 @@ export default function Home() {
             <div className="settings-nav"><b>Settings</b>{["Editor","Appearance","Files & Links","Core plugins","Hotkeys","About"].map(x=><button className={settingsTab===x?"active":""} key={x} onClick={()=>setSettingsTab(x as typeof settingsTab)}>{x}</button>)}</div>
             <div className="settings-main"><div className="settings-top"><div><small>SETTINGS</small><h2>{settingsTab}</h2></div><Dialog.Close asChild><button aria-label="Close settings"><X size={17}/></button></Dialog.Close></div>
               {settingsTab==="Editor" && <>
-                <label className="setting-toggle"><span><b>Live Preview</b><small>Render Markdown while you type.</small></span><input type="checkbox" defaultChecked/></label>
-                <label className="setting-toggle"><span><b>Spellcheck</b><small>Use the browser spelling engine.</small></span><input type="checkbox" defaultChecked/></label>
-                <label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" defaultChecked/></label>
+                <label className="setting-toggle"><span><b>Spellcheck</b><small>Use the browser spelling engine while editing.</small></span><input type="checkbox" checked={spellcheckEnabled} onChange={e=>setSpellcheckEnabled(e.target.checked)}/></label>
+                <label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" checked={inlinePropertiesEnabled} onChange={e=>setInlinePropertiesEnabled(e.target.checked)}/></label>
               </>}
               {settingsTab==="Appearance" && <>
                 <div className="settings-note"><b>Dark graphite</b><br/>The mobile-first NoteKeep theme uses layered semantic surfaces, Geist typography and a restrained accent.</div>
-                <label className="setting-toggle"><span><b>Compact interface</b><small>Reduce secondary chrome and keep writing dominant.</small></span><input type="checkbox" defaultChecked/></label>
+                <label className="setting-toggle"><span><b>Compact interface</b><small>Reduce secondary chrome and keep writing dominant.</small></span><input type="checkbox" checked={compactInterface} onChange={e=>setCompactInterface(e.target.checked)}/></label>
               </>}
               {settingsTab==="Files & Links" && <>
                 <div className="settings-note"><b>Local vault</b><br/>Notes and screenshot attachments are stored in this browser's IndexedDB. Markdown imports, exports and portable ZIP bundles are supported.</div>
@@ -926,7 +928,7 @@ export default function Home() {
       {mobileSheet === "search" && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
         <div className="mobile-search-sheet" onClick={e=>e.stopPropagation()}>
           <div className="sheet-grabber"/>
-          <div className="mobile-search-field"><Search size={19}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find or create a note…"/><button onClick={()=>{setQuery("");setMobileSheet(null)}}><X/></button></div>
+          <div className="mobile-search-field"><Search size={19}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){const q=query.trim();if(!q)return;const exact=notes.find(n=>n.title.toLowerCase()===q.toLowerCase());if(exact)openNote(exact);else void createNote(q);setQuery("");setMobileSheet(null)}}} placeholder="Find or create a note…"/><button onClick={()=>{setQuery("");setMobileSheet(null)}}><X/></button></div>
           <div className="mobile-search-results">{visibleNotes.map(n=><button key={n.id} onClick={()=>{openNote(n);setMobileSheet(null)}}><File size={17}/><span>{n.title||"Untitled"}</span><small>{n.path}</small></button>)}</div>
         </div>
       </div>}
