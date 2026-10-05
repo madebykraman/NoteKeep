@@ -807,3 +807,442 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{
   .opal-ui .left-footer{padding:14px}
   .opal-ui .left-footer button{height:44px;font-size:13px}
 }
+
+
+/* =========================================================
+   NOTEKEEP — UNIFIED UI SYSTEM
+   One surface language. One spacing scale. No decorative gradients.
+   ========================================================= */
+.opal-ui{
+  --bg:oklch(.095 .008 250);
+  --bg-deep:oklch(.075 .006 250);
+  --editor:oklch(.105 .008 250);
+  --panel:oklch(.125 .010 250);
+  --panel-2:oklch(.145 .011 250);
+  --panel-3:oklch(.175 .013 250);
+  --control:oklch(.155 .012 250);
+  --control-hover:oklch(.19 .014 250);
+  --border:oklch(.235 .014 250);
+  --border-soft:oklch(.19 .012 250);
+  --border-strong:oklch(.29 .016 250);
+  --text:oklch(.94 .005 250);
+  --text-2:oklch(.70 .009 250);
+  --text-3:oklch(.48 .010 250);
+  --accent-soft:color-mix(in oklab,var(--accent) 11%,transparent);
+  --radius-xs:7px;
+  --radius-sm:9px;
+  --radius-md:11px;
+  --radius-lg:14px;
+  --radius-xl:16px;
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:20px;
+  --space-6:24px;
+  background-color:var(--bg-deep)!important;
+  background-image:none!important;
+}
+
+/* Kill decorative background treatments from every previous visual pass. */
+.opal-ui,
+.opal-ui *,
+.opal-ui *::before,
+.opal-ui *::after{
+  background-image:none!important;
+  text-shadow:none;
+}
+
+/* Global surfaces */
+.opal-ui .main-area{background-color:var(--editor)!important}
+.opal-ui .left-sidebar{
+  width:280px;flex-basis:280px;
+  background-color:var(--panel)!important;
+  border-right:1px solid var(--border);
+}
+.opal-ui .right-sidebar{
+  width:260px;flex-basis:260px;
+  background-color:var(--panel)!important;
+  border-left:1px solid var(--border);
+}
+.opal-ui .appbar,
+.opal-ui .tabs,
+.opal-ui .statusbar,
+.opal-ui .vault-head,
+.opal-ui .right-tabs{
+  background-color:var(--panel)!important;
+  backdrop-filter:none;
+}
+
+/* One control language */
+.opal-ui button,
+.opal-ui input,
+.opal-ui textarea{
+  border-radius:var(--radius-sm);
+}
+.opal-ui button{
+  transition:background-color .14s ease,border-color .14s ease,color .14s ease,box-shadow .14s ease;
+}
+.opal-ui :focus-visible{
+  outline:2px solid color-mix(in oklab,var(--accent) 58%,transparent);
+  outline-offset:2px;
+}
+
+/* Sidebar */
+.opal-ui .vault-head{
+  height:56px;padding:0 12px;
+  border-bottom:1px solid var(--border-soft);
+}
+.opal-ui .vault-name{font-size:13px;color:var(--text)}
+.opal-ui .vault-name svg{color:var(--accent)}
+.opal-ui .side-icon{
+  width:32px;height:32px;border:1px solid transparent;
+  background-color:transparent!important;color:var(--text-3);
+}
+.opal-ui .side-icon:hover{
+  background-color:var(--control-hover)!important;
+  border-color:var(--border);
+  color:var(--text);
+}
+.opal-ui .ribbon{
+  height:56px;padding:8px 12px;gap:6px;
+  border-bottom:1px solid var(--border-soft);
+}
+.opal-ui .ribbon button{
+  width:42px;height:40px;
+  border:1px solid var(--border);
+  background-color:var(--control)!important;
+  color:var(--text-2);
+  border-radius:var(--radius-md);
+}
+.opal-ui .ribbon button:first-child{
+  background-color:var(--accent-soft)!important;
+  border-color:color-mix(in oklab,var(--accent) 30%,var(--border));
+  color:var(--text);
+  box-shadow:none;
+}
+.opal-ui .ribbon button:hover{
+  background-color:var(--control-hover)!important;
+  border-color:var(--border-strong);
+  color:var(--text);
+}
+.opal-ui .vault-search{
+  height:42px;margin:12px 12px 16px;padding:0 11px;
+  border:1px solid var(--border);border-radius:var(--radius-md);
+  background-color:var(--control)!important;
+  color:var(--text-2);box-shadow:none;
+}
+.opal-ui .vault-search:focus-within{
+  border-color:color-mix(in oklab,var(--accent) 48%,var(--border));
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+.opal-ui .vault-search input{font-size:12px;color:var(--text)}
+.opal-ui .vault-search kbd{
+  border:1px solid var(--border);border-radius:var(--radius-xs);
+  padding:3px 6px;color:var(--text-3);
+}
+.opal-ui .explorer-head{
+  height:32px;padding:0 14px;color:var(--text-3);
+  font-size:10px;letter-spacing:.1em;
+}
+.opal-ui .explorer-head button{
+  width:28px;height:28px;border:0;
+  background-color:transparent!important;color:var(--text-3);
+}
+.opal-ui .explorer-head button:hover{
+  background-color:var(--control-hover)!important;color:var(--text);
+}
+.opal-ui .file-tree{padding:4px 8px 10px}
+.opal-ui .folder-row,
+.opal-ui .file-row{
+  border-radius:var(--radius-sm);
+  color:var(--text-2);
+}
+.opal-ui .folder-row{height:38px;padding:0 9px}
+.opal-ui .file-row{
+  height:40px;margin:2px 0;padding:0 9px 0 27px;
+  border:1px solid transparent;
+}
+.opal-ui .file-row:hover{
+  background-color:var(--control-hover)!important;color:var(--text);
+}
+.opal-ui .file-row.active{
+  background-color:var(--accent-soft)!important;
+  border-color:color-mix(in oklab,var(--accent) 22%,var(--border));
+  color:var(--text);box-shadow:none;
+}
+.opal-ui .file-row.active svg{color:var(--accent)}
+.opal-ui .left-footer{
+  padding:10px;border-top:1px solid var(--border-soft);
+  background-color:var(--panel)!important;
+}
+.opal-ui .left-footer button{
+  min-height:38px;border:1px solid transparent;border-radius:var(--radius-sm);
+  background-color:transparent!important;color:var(--text-3);font-size:11px;
+}
+.opal-ui .left-footer button:hover{
+  background-color:var(--control-hover)!important;
+  border-color:var(--border);color:var(--text);
+}
+
+/* Center chrome */
+.opal-ui .appbar{
+  height:44px;padding:0 8px;border-bottom:1px solid var(--border);
+}
+.opal-ui .chrome-icon{
+  width:32px;height:32px;border-radius:var(--radius-sm);
+  background-color:transparent!important;color:var(--text-3);
+}
+.opal-ui .chrome-icon:hover{
+  background-color:var(--control-hover)!important;color:var(--text);
+}
+.opal-ui .breadcrumbs{font-size:10px;color:var(--text-3)}
+.opal-ui .breadcrumbs b{color:var(--text-2)}
+.opal-ui .tabs{height:40px;border-bottom:1px solid var(--border)}
+.opal-ui .tab{
+  height:40px;min-width:150px;
+  background-color:var(--panel)!important;
+  border-right:1px solid var(--border);
+  color:var(--text-3);
+}
+.opal-ui .tab.active{
+  background-color:var(--control)!important;
+  color:var(--text);
+  border-bottom-color:var(--accent);
+  box-shadow:none;
+}
+.opal-ui .tab i:hover{
+  background-color:var(--control-hover)!important;color:var(--text);
+}
+.opal-ui .new-tab:hover{
+  background-color:var(--control-hover)!important;color:var(--text);
+}
+
+/* Writing surface */
+.opal-ui .editor-wrap{background-color:var(--editor)!important}
+.opal-ui .note-editor{
+  width:min(820px,100%);
+  padding:56px 52px 110px;
+}
+.opal-ui .note-head{margin-bottom:26px}
+.opal-ui .note-title{
+  color:var(--text);font-size:40px;font-weight:650;
+}
+.opal-ui .more-note{
+  width:32px;height:32px;border:1px solid transparent;
+  background-color:transparent!important;color:var(--text-3);
+}
+.opal-ui .more-note:hover{
+  background-color:var(--control-hover)!important;
+  border-color:var(--border);color:var(--text);
+}
+.opal-ui .properties-inline{
+  gap:6px;margin:-4px 0 24px;padding-bottom:14px;
+  border-color:var(--border-soft);
+}
+.opal-ui .properties-inline span{
+  padding:5px 8px;border:1px solid var(--border);
+  background-color:var(--control)!important;border-radius:var(--radius-xs);
+}
+
+/* Text blocks */
+.opal-ui .text-block textarea,
+.opal-ui .image-block textarea{
+  color:var(--text-2);
+}
+.opal-ui .text-block textarea:focus,
+.opal-ui .image-block textarea:focus{color:var(--text)}
+.opal-ui .block-tools button{
+  width:30px;height:30px;
+  border:1px solid var(--border);
+  background-color:var(--control)!important;
+  color:var(--text-3);
+  border-radius:var(--radius-sm);
+}
+.opal-ui .block-tools button:hover{
+  background-color:var(--control-hover)!important;
+  border-color:var(--border-strong);color:var(--text);
+}
+
+/* Screenshot attachment — deliberately quiet and secondary */
+.opal-ui .image-block{
+  margin:18px 0 28px;padding:10px;
+  background-color:var(--panel)!important;
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  box-shadow:none;
+}
+.opal-ui .image-frame{
+  width:min(320px,100%);height:260px;
+  background-color:var(--bg-deep)!important;
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+}
+.opal-ui .image-frame img{
+  width:auto;max-width:100%;height:auto;max-height:260px;
+}
+.opal-ui .image-block textarea{
+  padding:11px 2px 5px;color:var(--text-2);
+}
+.opal-ui .image-block figcaption{
+  border-top:1px solid var(--border-soft);
+}
+.opal-ui .image-block figcaption button{
+  min-height:34px;padding:0 9px;
+  border:1px solid transparent;
+  background-color:transparent!important;
+  color:var(--text-3);
+  border-radius:var(--radius-xs);
+}
+.opal-ui .image-block figcaption button:hover{
+  background-color:var(--control-hover)!important;
+  border-color:var(--border);color:var(--text);
+}
+
+/* Insert controls */
+.opal-ui .insert-line{
+  gap:6px;border-color:var(--border-soft);
+}
+.opal-ui .insert-line button{
+  min-height:38px;padding:0 12px;
+  border:1px solid var(--border);
+  background-color:var(--control)!important;
+  color:var(--text-2);border-radius:var(--radius-sm);
+}
+.opal-ui .insert-line button:hover{
+  background-color:var(--control-hover)!important;
+  color:var(--text);
+}
+
+/* Right sidebar */
+.opal-ui .right-tabs{height:42px}
+.opal-ui .right-tabs button{
+  background-color:transparent!important;color:var(--text-3);
+}
+.opal-ui .right-tabs button.active{
+  color:var(--text);border-bottom-color:var(--accent);
+}
+.opal-ui .mention:hover,
+.opal-ui .outline-row:hover,
+.opal-ui .tag-row:hover{
+  background-color:var(--control-hover)!important;color:var(--text);
+}
+
+/* Dialogs / menus */
+.opal-ui .modal-backdrop{background-color:oklch(0 0 0 / .62)!important;backdrop-filter:blur(4px)}
+.opal-ui .image-sheet,
+.opal-ui .command-palette,
+.opal-ui .settings-modal,
+.opal-ui .properties-pop,
+.opal-ui .format-pop{
+  background-color:var(--panel-2)!important;
+  border:1px solid var(--border-strong);
+  box-shadow:0 24px 80px oklch(0 0 0 / .45);
+}
+.opal-ui .settings-modal{border-radius:var(--radius-xl)}
+.opal-ui .settings-nav{
+  background-color:var(--panel)!important;
+  border-right:1px solid var(--border);
+}
+.opal-ui .settings-nav button{
+  border-radius:var(--radius-sm);
+}
+.opal-ui .settings-nav button.active,
+.opal-ui .settings-nav button:hover{
+  background-color:var(--control-hover)!important;
+  color:var(--text);
+}
+.opal-ui .settings-note{
+  background-color:var(--control)!important;
+  border-color:var(--border);
+  border-radius:var(--radius-md);
+}
+.opal-ui .command-list button:hover,
+.opal-ui .image-sheet>button:hover{
+  background-color:var(--control-hover)!important;
+}
+.opal-ui .property-row input{
+  background-color:var(--control)!important;
+  border-color:var(--border);
+}
+.opal-ui .property-row input:focus{
+  border-color:color-mix(in oklab,var(--accent) 45%,var(--border));
+}
+
+/* Accent picker: solid swatches, not decorative gradients */
+.opal-ui .accent-swatch{background-color:var(--control)!important;border-radius:var(--radius-md)}
+.opal-ui .accent-swatch.violet span{background-color:oklch(.68 .18 301)!important}
+.opal-ui .accent-swatch.blue span{background-color:oklch(.67 .16 258)!important}
+.opal-ui .accent-swatch.cyan span{background-color:oklch(.70 .14 195)!important}
+.opal-ui .accent-swatch.amber span{background-color:oklch(.72 .16 82)!important}
+.opal-ui .accent-swatch.active{box-shadow:0 0 0 2px var(--accent-soft);border-color:var(--accent)}
+
+/* Status / reading / image viewer */
+.opal-ui .statusbar{
+  background-color:var(--panel)!important;border-color:var(--border);
+}
+.opal-ui .image-viewer{
+  background-color:oklch(0 0 0 / .92)!important;
+  backdrop-filter:blur(8px);
+}
+.opal-ui .image-viewer>img{
+  border-color:var(--border);box-shadow:none;
+}
+.opal-ui .image-viewer-close{
+  background-color:var(--panel-2)!important;
+  border-color:var(--border);border-radius:var(--radius-sm);
+}
+.opal-ui .graph-overlay{background-color:var(--editor)!important}
+.opal-ui .graph-toolbar{background-color:var(--panel)!important;border-color:var(--border)}
+.opal-ui .graph-svg line{stroke:var(--border)}
+.opal-ui .graph-node circle{fill:var(--text-3);stroke:var(--border-strong)}
+.opal-ui .graph-node:hover circle,
+.opal-ui .graph-node.active circle{fill:var(--accent);stroke:var(--accent-strong)}
+
+/* Mobile: same system, not a second design */
+@media(max-width:800px){
+  .opal-ui .left-sidebar{
+    width:min(320px,88vw);
+    background-color:var(--panel)!important;
+    box-shadow:20px 0 60px oklch(0 0 0 / .5);
+  }
+  .opal-ui .mobile-chrome{
+    height:calc(58px + var(--mobile-safe-top));
+    background-color:var(--panel)!important;
+    border-bottom:1px solid var(--border);
+  }
+  .opal-ui .mobile-chrome-button{
+    width:44px;height:44px;border-radius:var(--radius-md);
+    background-color:var(--control)!important;
+    border:1px solid var(--border);
+  }
+  .opal-ui .mobile-chrome-button:hover{
+    background-color:var(--control-hover)!important;
+  }
+  .opal-ui .mobile-title{font-size:15px;font-weight:600}
+  .opal-ui .note-editor{padding:26px 18px calc(120px + var(--mobile-safe-bottom))}
+  .opal-ui .note-title{font-size:34px}
+  .opal-ui .image-block{padding:8px;border-radius:var(--radius-md)}
+  .opal-ui .image-frame{
+    width:min(100%,320px);height:280px;
+  }
+  .opal-ui .image-frame img{max-height:280px}
+  .opal-ui .image-context-trigger{
+    width:36px;height:36px;border-radius:var(--radius-md);
+    background-color:var(--panel-2)!important;
+    border:1px solid var(--border);color:var(--text-2);
+  }
+  .opal-ui .insert-line button{min-height:42px}
+  .opal-ui .settings-modal{border-radius:var(--radius-lg)}
+}
+
+/* Keep the functional attachment context sheet consistent too. */
+.opal-ui .mobile-action-sheet{
+  background-color:var(--panel-2)!important;
+  border:1px solid var(--border-strong);
+  box-shadow:0 24px 80px oklch(0 0 0 / .5);
+}
+.opal-ui .mobile-action-sheet button:hover,
+.opal-ui .mobile-tabs-overlay .tab-card:hover{
+  background-color:var(--control-hover)!important;
+}
