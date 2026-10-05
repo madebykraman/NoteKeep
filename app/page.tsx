@@ -5,9 +5,9 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import {
-  Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
-  Bold, CalendarDays, Command, Copy, Download, File, FileDown, FilePlus, FilePenLine, Folder, FolderOpen, GitBranch,
-  Hash, Heading2, ImagePlus, Info, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight, PanelsTopLeft,
+  BookOpen, ChevronDown, ChevronRight,
+  Bold, CalendarDays, Command, Copy, Download, File, FileDown, FilePlus, FilePenLine, FolderOpen,
+  Hash, Heading2, ImagePlus, Info, Link2, MoreHorizontal, PanelLeft, PanelRight, PanelsTopLeft,
   Palette, Plus, Puzzle, Redo2, Search, Settings, Share2, Sparkles, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
 } from "lucide-react";
 
