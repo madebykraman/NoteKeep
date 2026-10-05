@@ -2,7 +2,7 @@
 
 import { ChangeEvent, ClipboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Camera, ChevronLeft, Download, FilePlus2, ImagePlus, Menu, MoreHorizontal,
+  Camera, Check, ChevronLeft, Download, FilePlus2, ImagePlus, Menu, MoreHorizontal,
   Search, Share2, Trash2, X
 } from "lucide-react";
 
@@ -120,7 +120,9 @@ export default function Home(){
     setActiveId(note.id);setSelectedImage(0);setDrawer(false);
   };
 
-  const deleteActive=async()=>{
+  const clearBody=()=>{if(!active)return;if(window.confirm("Clear this note text?"))updateNote({body:""})};
+
+  const deleteActive=async()=>{if(!active)return;if(!window.confirm("Delete this note?"))return;
     if(!active)return;
     for(const id of active.imageIds)await storeDelete("images",id);
     await storeDelete("notes",active.id);
@@ -191,7 +193,7 @@ export default function Home(){
         <span className="top-title">{active.title||"Untitled note"}</span>
         <div className="top-actions">
           <button className="icon-button" aria-label="Review" onClick={()=>setReview(true)}><Share2 size={18}/></button>
-          <button className="icon-button" aria-label="More"><MoreHorizontal size={19}/></button>
+          <button className="icon-button" aria-label="Delete note" onClick={()=>void deleteActive()}><Trash2 size={19}/></button><button className="icon-button" aria-label="More"><MoreHorizontal size={19}/></button>
         </div>
       </header>
 
@@ -203,13 +205,13 @@ export default function Home(){
               {currentUrl?<img className="main-image" src={currentUrl} alt="Attached reference"/>:<button className="empty-visual" onClick={()=>setPhotoSheet(true)}><ImagePlus size={22}/><strong>Add photos</strong><span>Camera, Photos, or paste</span></button>}
             </div>
             {active.imageIds.length>0&&<div className="images-bar">
-              {active.imageIds.map((id,i)=><button key={id} className={"image-thumb "+(i===selectedImage?"selected":"")} onClick={()=>setSelectedImage(i)}>{urls[id]?<img src={urls[id]} alt=""/>:<span/>}</button>)}
+              {active.imageIds.map((id,i)=><button key={id} className={"image-thumb "+(i===selectedImage?"selected":"")} onClick={()=>setSelectedImage(i)}>{urls[id]?<img src={urls[id]} alt=""/>:<span/>}</button><button className="thumb-remove" onClick={()=>void (async()=>{await storeDelete("images",id);const next=active.imageIds.filter(x=>x!==id);updateNote({imageIds:next});setSelectedImage(Math.min(selectedImage,Math.max(0,next.length-1)))})()} aria-label="Remove image"><X size={12}/></button>)}
               <button className="add-thumb" onClick={()=>setPhotoSheet(true)} aria-label="Add another photo"><ImagePlus size={18}/></button>
             </div>}
           </div>
           <div className="writing">
             <textarea value={active.body} onChange={e=>updateNote({body:e.target.value})} placeholder="Write a note…" autoCapitalize="sentences" autoCorrect="on" spellCheck/>
-            <div className="writing-bar"><button onClick={()=>setPhotoSheet(true)}><ImagePlus size={16}/> Photos</button><span>{saveState==="saving"?"Saving…":saveState==="error"?"Not saved":"Saved locally"}</span></div>
+            <div className="writing-bar"><button onClick={()=>setPhotoSheet(true)}><ImagePlus size={16}/> Photos</button><div className="writing-actions"><button className="clear-action" onClick={clearBody}>Clear</button><span>{saveState==="saving"?"Saving…":saveState==="error"?"Not saved":"Saved locally"}</span></div></div>
           </div>
         </div>
       </div>
@@ -230,6 +232,5 @@ export default function Home(){
       <div className="review-content">{active.body&&<p>{active.body}</p>}{active.imageIds.map((id,i)=>urls[id]&&<img key={id} src={urls[id]} alt={"Reference "+(i+1)}/>)}</div>
       <div className="review-actions"><button className="primary" onClick={()=>void exportPNG()}><Download size={17}/> Export PNG</button><button onClick={()=>setReview(false)}>Done</button></div>
     </section></div>}
-    <button className="delete-hidden" aria-label="Delete note" onClick={()=>void deleteActive()}><Trash2 size={16}/></button>
   </main>;
 }
