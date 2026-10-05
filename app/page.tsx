@@ -6,7 +6,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import {
   Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
-  Bold, Command, Copy, Download, File, FileDown, FilePlus, FilePenLine, Folder, FolderOpen, GitBranch,
+  Bold, CalendarDays, Command, Copy, Download, File, FileDown, FilePlus, FilePenLine, Folder, FolderOpen, GitBranch,
   Hash, Heading2, ImagePlus, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight,
   Plus, Redo2, Search, Settings, Share2, Sparkles, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
 } from "lucide-react";
@@ -758,7 +758,7 @@ export default function Home() {
             )}
 
             {sourceMode ? (
-              <textarea className="source-editor" value={markdownFor(active)} onChange={e => {
+              <textarea readOnly={readingMode} className="source-editor" value={markdownFor(active)} onChange={e => {
                 const lines = e.target.value.split("\n");
                 let start = 0;
                 const properties: Record<string,string> = {};
@@ -776,8 +776,33 @@ export default function Home() {
                 const title = lines[start]?.replace(/^#\s*/, "") || "Untitled";
                 if (lines[start]?.match(/^#\s+/)) start++;
                 while (start < lines.length && !lines[start].trim()) start++;
-                const body = lines.slice(start).join("\n");
-                update({title, path:title + ".md", properties, blocks:[{id:active.blocks[0]?.id||uid(),type:"text",text:body}]});
+                const bodyLines = lines.slice(start);
+                const blocks: Block[] = [];
+                let textLines: string[] = [];
+                const flushText = () => {
+                  const value = textLines.join("\n").trimEnd();
+                  if (value.trim()) blocks.push({id:uid(),type:"text",text:value});
+                  textLines = [];
+                };
+                for (let i=0;i<bodyLines.length;i++) {
+                  const line = bodyLines[i];
+                  const image = line.match(/^!\[Screenshot\]\(notekeep:\/\/([^)]+)\)$/);
+                  if (image) {
+                    flushText();
+                    let commentary = "";
+                    let j = i + 1;
+                    while (j < bodyLines.length && bodyLines[j].trim()) {
+                      commentary += (commentary ? "\n" : "") + bodyLines[j];
+                      j++;
+                    }
+                    blocks.push({id:uid(),type:"image",imageId:image[1],text:commentary});
+                    i = j - 1;
+                  } else {
+                    textLines.push(line);
+                  }
+                }
+                flushText();
+                update({title, path:title + ".md", properties, blocks:blocks.length ? blocks : [{id:uid(),type:"text",text:""}]});
               }} />
             ) : (
               <div className="document">
