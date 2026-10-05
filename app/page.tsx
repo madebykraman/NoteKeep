@@ -27,7 +27,7 @@ type Note = {
 
 type ImageRecord = { id: string; blob: Blob };
 type PluginFlags = {
-  search: boolean; commandPalette: boolean; graph: boolean; properties: boolean;
+  search: boolean; commandPalette: boolean; properties: boolean;
   backlinks: boolean; dailyNotes: boolean; sourceMode: boolean;
 };
 
@@ -174,10 +174,9 @@ export default function Home() {
   const [exportFrontmatter, setExportFrontmatter] = useState(true);
   const [hotkeysEnabled, setHotkeysEnabled] = useState(true);
   const [plugins, setPlugins] = useState<PluginFlags>({
-    search: true, commandPalette: true, graph: true, properties: true,
+    search: true, commandPalette: true, properties: true,
     backlinks: true, dailyNotes: true, sourceMode: true
   });
-  const [graphOpen, setGraphOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [sourceMode, setSourceMode] = useState(false);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -227,7 +226,6 @@ export default function Home() {
   useEffect(() => {
     if (!plugins.backlinks && rightPanel === "backlinks") setRightPanel("outline");
     if (!plugins.commandPalette) setCommandOpen(false);
-    if (!plugins.graph) setGraphOpen(false);
     if (!plugins.search && mobileSheet === "search") setMobileSheet(null);
   }, [plugins, rightPanel, mobileSheet]);
 
@@ -280,11 +278,20 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       let all = await getNotes();
+
+      // Never seed demo/sample content. Remove only NoteKeep's old bootstrap note.
+      const seeded = all.filter(n =>
+        n.title === "Welcome to NoteKeep" &&
+        n.path === "Welcome to NoteKeep.md" &&
+        n.blocks.length === 1 &&
+        n.blocks[0].type === "text" &&
+        n.blocks[0].text === "A local-first knowledge base with Obsidian-style links and your visual screenshot workflow.\n\nTry [[Daily Notes]], add #ideas, or paste a screenshot directly into this note."
+      );
+      for (const n of seeded) await del("notes", n.id);
+      all = all.filter(n => !seeded.some(x => x.id === n.id));
+
       if (!all.length) {
         const fresh = blank();
-        fresh.title = "Welcome to NoteKeep";
-        fresh.path = "Welcome to NoteKeep.md";
-        fresh.blocks = [{ id: uid(), type: "text", text: "A local-first knowledge base with Obsidian-style links and your visual screenshot workflow.\n\nTry [[Daily Notes]], add #ideas, or paste a screenshot directly into this note." }];
         await putNote(fresh);
         all = [fresh];
       }
@@ -812,7 +819,6 @@ export default function Home() {
     setCommandOpen(false); setCommandQuery("");
     if (command === "New note") void createNote();
     if (command === "Search" && plugins.search) { setLeftOpen(true); if (window.innerWidth <= 800) setMobileSheet("search"); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 30); }
-    if (command === "Graph view" && plugins.graph) setGraphOpen(true);
     if (command === "Export note") setFormatOpen(true);
     if (command === "Import note") importFile.current?.click();
     if (command === "Toggle right sidebar") setRightOpen(v => !v);
@@ -841,7 +847,7 @@ export default function Home() {
       }
       if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); void createNote(); }
       if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); importFile.current?.click(); }
-      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setGraphOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); setImageViewer(null); setMobileSheet(null); setMobileImageMenu(null); setEditorFocused(false); }
+      if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); setImageViewer(null); setMobileSheet(null); setMobileImageMenu(null); setEditorFocused(false); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -851,7 +857,6 @@ export default function Home() {
     "New note",
     ...(plugins.search ? ["Search"] : []),
     ...(plugins.dailyNotes ? ["Daily note"] : []),
-    ...(plugins.graph ? ["Graph view"] : []),
     "Export note", "Import note", "Toggle left sidebar", "Toggle right sidebar",
     ...(plugins.sourceMode ? ["Toggle source mode"] : []),
     "Open settings"
@@ -872,7 +877,6 @@ export default function Home() {
         </div>
         <div className="ribbon">
           <button onClick={() => void createNote()} title="New note"><FilePlus size={16} /></button>
-          {plugins.graph && <button onClick={() => setGraphOpen(true)} title="Graph"><GitBranch size={16} /></button>}
           {plugins.commandPalette && <button onClick={() => setCommandOpen(true)} title="Command palette"><Command size={16} /></button>}
         </div>
         {plugins.search && <label className="vault-search"><Search size={14}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search vault" /><kbd>⌘ K</kbd></label>}
@@ -887,7 +891,6 @@ export default function Home() {
           {!visibleNotes.length && <div className="empty-tree">No matching notes</div>}
         </div>
         <div className="left-footer">
-          {plugins.graph && <button onClick={() => setGraphOpen(true)}><GitBranch size={14}/> Graph view</button>}
           <button onClick={() => setSettingsOpen(true)}><Settings size={14}/> Settings</button>
         </div>
       </aside>
@@ -1127,7 +1130,6 @@ export default function Home() {
                 {(Object.entries({
                   search:["Search","Search the vault and create notes from the mobile finder."],
                   commandPalette:["Command palette","Run actions without reaching for the sidebar."],
-                  graph:["Graph view","Explore wikilink relationships visually."],
                   properties:["Properties","Edit note metadata and frontmatter."],
                   backlinks:["Backlinks","See incoming links and unresolved links."],
                   dailyNotes:["Daily notes","Create or reopen today's date-named note."],
@@ -1142,7 +1144,7 @@ export default function Home() {
               {settingsTab==="About" && <>
                 <div className="settings-note"><b>NoteKeep 0.1.0</b><br/>Local-first notes with an Obsidian-style knowledge foundation and contextual screenshot commentary.<br/><br/>Storage: {notes.length} notes in IndexedDB.</div>
                 <button className="settings-action" type="button" onClick={()=>downloadBlob(new Blob([JSON.stringify({app:"NoteKeep",version:"0.1.0",notes:notes.length,plugins,preferences:{spellcheckEnabled,inlinePropertiesEnabled,compactInterface,accentTheme,confirmDelete,openLinksInNewTab,exportFrontmatter,hotkeysEnabled}},null,2)],{type:"application/json"}),"notekeep-diagnostics.json")}>Export diagnostics</button>
-                <button className="settings-action" type="button" onClick={()=>{setSpellcheckEnabled(true);setInlinePropertiesEnabled(true);setCompactInterface(true);setAccentTheme("violet");setConfirmDelete(true);setOpenLinksInNewTab(false);setExportFrontmatter(true);setHotkeysEnabled(true);setPlugins({search:true,commandPalette:true,graph:true,properties:true,backlinks:true,dailyNotes:true,sourceMode:true});setStatus("Preferences reset")}}>Reset preferences</button>
+                <button className="settings-action" type="button" onClick={()=>{setSpellcheckEnabled(true);setInlinePropertiesEnabled(true);setCompactInterface(true);setAccentTheme("violet");setConfirmDelete(true);setOpenLinksInNewTab(false);setExportFrontmatter(true);setHotkeysEnabled(true);setPlugins({search:true,commandPalette:true,properties:true,backlinks:true,dailyNotes:true,sourceMode:true});setStatus("Preferences reset")}}>Reset preferences</button>
               </>}            </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -1157,7 +1159,6 @@ export default function Home() {
           <button onClick={()=>{setMobileSheet(null);setReadingMode(false);setTimeout(()=>document.querySelector<HTMLInputElement>(".note-title")?.focus(),50)}}><FilePenLine/><span>Rename…</span></button>
           <button onClick={()=>{setMobileSheet("search")}}><Search/><span>Find…</span></button>
           {plugins.commandPalette && <button onClick={()=>{setMobileSheet(null);setCommandOpen(true)}}><Command/><span>Command palette</span></button>}
-          {plugins.graph && <button onClick={()=>{setMobileSheet(null);setGraphOpen(true)}}><GitBranch/><span>Graph view</span></button>}
           {plugins.dailyNotes && <button onClick={()=>{setMobileSheet(null);const title=new Date().toISOString().slice(0,10);const existing=notes.find(n=>n.title===title);if(existing)openNote(existing,true);else void createNote(title)}}><CalendarDays/><span>Daily note</span></button>}
           <button onClick={()=>{setMobileSheet(null);void shareNote()}}><Share2/><span>Share note</span></button>
           <button className="danger" onClick={()=>{setMobileSheet(null);void deleteNote()}}><Trash2/><span>Delete note</span></button>
@@ -1197,7 +1198,6 @@ export default function Home() {
         </div>
       </div>}
 
-      {graphOpen && plugins.graph && <Graph notes={notes} active={active} onOpen={openNote} onClose={()=>setGraphOpen(false)}/>}
     </main>
   );
 }
@@ -1205,10 +1205,3 @@ export default function Home() {
 function ListIcon(){return <span className="list-icon">≡</span>}
 function CameraIcon(){return <span className="camera-icon">◉</span>}
 
-function Graph({notes,active,onOpen,onClose}:{notes:Note[];active:Note;onOpen:(n:Note)=>void;onClose:()=>void}) {
-  const nodes = notes.slice(0,24);
-  const cx=500, cy=310, r=Math.min(230,Math.max(100,nodes.length*13));
-  const points=nodes.map((n,i)=>({n,x:cx+(nodes.length===1?0:Math.cos(i/nodes.length*Math.PI*2)*r),y:cy+(nodes.length===1?0:Math.sin(i/nodes.length*Math.PI*2)*r)}));
-  const pos=new Map(points.map(p=>[p.n.id,p]));
-  return <div className="graph-overlay"><div className="graph-toolbar"><b>Graph view</b><span>{notes.length} notes</span><button onClick={onClose}><X size={17}/></button></div><svg viewBox="0 0 1000 620" className="graph-svg">{nodes.flatMap(n=>linksIn(n).map(l=>{const to=nodes.find(x=>x.title.toLowerCase()===l);const a=pos.get(n.id),b=to&&pos.get(to.id);return a&&b?<line key={n.id+l} x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>:null})).filter(Boolean)}{points.map(p=><g key={p.n.id} onClick={()=>onOpen(p.n)} className={p.n.id===active.id?"graph-node active": "graph-node"}><circle cx={p.x} cy={p.y} r={p.n.id===active.id?10:7}/><text x={p.x+13} y={p.y+4}>{p.n.title.slice(0,24)}</text></g>)}</svg></div>;
-}
