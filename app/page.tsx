@@ -6,9 +6,9 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import {
   Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
-  Command, Copy, Download, File, FileDown, FilePlus, Folder, FolderOpen, GitBranch,
-  Hash, ImagePlus, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight,
-  Plus, Search, Settings, Sparkles, Tags, Trash2, X, ZoomIn, ZoomOut
+  Bold, Command, Copy, Download, File, FileDown, FilePlus, Folder, FolderOpen, GitBranch,
+  Hash, Heading2, ImagePlus, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight,
+  Plus, Redo2, Search, Settings, Share2, Sparkles, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
 } from "lucide-react";
 
 type Block =
@@ -121,6 +121,10 @@ export default function Home() {
   const [leftOpen, setLeftOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
   const [imageViewer, setImageViewer] = useState<string | null>(null);
+  const [mobileSheet, setMobileSheet] = useState<"more" | "search" | "tabs" | null>(null);
+  const [mobileImageMenu, setMobileImageMenu] = useState<string | null>(null);
+  const [readingMode, setReadingMode] = useState(false);
+  const [editorFocused, setEditorFocused] = useState(false);
   const [rightOpen, setRightOpen] = useState(true);
   const [rightPanel, setRightPanel] = useState<"backlinks" | "outline" | "tags">("backlinks");
   const [commandOpen, setCommandOpen] = useState(false);
@@ -296,6 +300,61 @@ export default function Home() {
     if (b?.type === "image") await del("images", b.imageId);
     const blocks = active.blocks.filter(x => x.id !== blockId);
     update({ blocks: blocks.length ? blocks : [{ id: uid(), type: "text", text: "" }] });
+  };
+
+  const updateFocusedText = (transform: (value: string, start: number, end: number) => { text: string; start: number; end: number }) => {
+    const el = document.activeElement;
+    if (!(el instanceof HTMLTextAreaElement)) return;
+    const match = el.id.match(/^block-(.+)$/);
+    if (!match) return;
+    const block = active?.blocks.find(b => b.id === match[1]);
+    if (!block || block.type !== "text") return;
+    const result = transform(block.text, el.selectionStart, el.selectionEnd);
+    updateBlock(block.id, result.text);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(result.start, result.end);
+    });
+  };
+
+  const wrapFocusedText = (prefix: string, suffix = prefix) => {
+    updateFocusedText((value, start, end) => ({
+      text: value.slice(0, start) + prefix + value.slice(start, end) + suffix + value.slice(end),
+      start: start + prefix.length,
+      end: end + prefix.length
+    }));
+  };
+
+  const prependFocusedLine = (prefix: string) => {
+    updateFocusedText((value, start, end) => {
+      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+      const text = value.slice(0, lineStart) + prefix + value.slice(lineStart);
+      return { text, start: start + prefix.length, end: end + prefix.length };
+    });
+  };
+
+  const shareNote = async () => {
+    if (!active) return;
+    const text = markdownFor(active);
+    if (navigator.share) {
+      await navigator.share({ title: active.title || "NoteKeep note", text }).catch(() => {});
+    } else {
+      await navigator.clipboard?.writeText(text);
+      setStatus("Copied to clipboard");
+    }
+  };
+
+  const copyImage = async (blockId: string) => {
+    const block = active?.blocks.find(b => b.id === blockId);
+    if (!block || block.type !== "image") return;
+    const record = await getImage(block.imageId);
+    if (!record) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ [record.blob.type || "image/png"]: record.blob })]);
+      setStatus("Image copied");
+    } catch {
+      setStatus("Copy image unavailable");
+    }
   };
 
   const deleteNote = async () => {
@@ -620,6 +679,14 @@ export default function Home() {
       </aside>
 
       <section className="main-area">
+        <div className="mobile-chrome">
+          <button className="mobile-chrome-button" onClick={()=>setLeftOpen(true)} aria-label="Open vault"><PanelLeft size={21}/></button>
+          <div className="mobile-title">{active.title || "Untitled"}</div>
+          <div className="mobile-chrome-actions">
+            <button className="mobile-chrome-button" onClick={()=>setMobileSheet("tabs")} aria-label="Open tabs"><BookOpen size={21}/></button>
+            <button className="mobile-chrome-button" onClick={()=>setMobileSheet("more")} aria-label="More actions"><MoreHorizontal size={21}/></button>
+          </div>
+        </div>
         {leftOpen && <button className="sidebar-scrim" onClick={() => setLeftOpen(false)} aria-label="Close sidebar" />}
         <header className="appbar">
           <div className="appbar-left">
@@ -715,7 +782,7 @@ export default function Home() {
               <div className="document">
                 {active.blocks.map((block, index) => block.type === "text" ? (
                   <section className="text-block" key={block.id}>
-                    <textarea id={"block-"+block.id} ref={resize} value={block.text} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>
+                    <textarea id={"block-"+block.id} ref={resize} value={block.text} onFocus={()=>setEditorFocused(true)} onBlur={()=>setTimeout(()=>setEditorFocused(false),120)} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} onPaste={e=>void pasteImage(e,block.id)} placeholder={index===0?"Start writing…":"Continue writing…"} rows={1}/>
                     <div className="block-tools">
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"insert"};setSheet({blockId:block.id,mode:"insert"})}} title="Insert image"><ImagePlus size={14}/></button>
                       <button onClick={()=>insertText(block.id)} title="New paragraph"><Plus size={14}/></button>
@@ -723,8 +790,9 @@ export default function Home() {
                     </div>
                   </section>
                 ) : (
-                  <figure className="image-block" key={block.id}>
+                  <figure className={"image-block " + (mobileImageMenu === block.id ? "context-open" : "")} key={block.id}>
                     {urls[block.imageId]&&<button className="image-frame" onClick={() => setImageViewer(urls[block.imageId])} aria-label="Open screenshot preview"><img src={urls[block.imageId]} alt="" draggable={false}/><span className="image-open-hint">Open preview</span></button>}
+                    <button className="image-context-trigger" onClick={()=>setMobileImageMenu(block.id)} aria-label="Image actions"><MoreHorizontal size={17}/></button>
                     <textarea ref={resize} value={block.text} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
                     <figcaption>
                       <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}} title="Save this screenshot"><Download size={13}/> Save image</button>
@@ -740,6 +808,14 @@ export default function Home() {
           </article>
         </div>
 
+        {editorFocused && !readingMode && <div className="mobile-editor-toolbar" aria-label="Editor toolbar">
+          <button onMouseDown={e=>{e.preventDefault();document.execCommand("undo")}} aria-label="Undo"><Undo2/></button>
+          <button onMouseDown={e=>{e.preventDefault();document.execCommand("redo")}} aria-label="Redo"><Redo2/></button>
+          <button onMouseDown={e=>{e.preventDefault();prependFocusedLine("## ")}} aria-label="Heading"><Heading2/></button>
+          <button onMouseDown={e=>{e.preventDefault();wrapFocusedText("**")}} aria-label="Bold"><Bold/></button>
+          <button onClick={()=>{const last=active.blocks[active.blocks.length-1];imageTarget.current={blockId:last?.id||"",mode:"insert"};setSheet({blockId:last?.id||"",mode:"insert"})}} aria-label="Attach screenshot"><ImagePlus/></button>
+          <button onClick={()=>setEditorFocused(false)} aria-label="Dismiss toolbar"><X/></button>
+        </div>
         <footer className="statusbar">
           <span>{active.path}</span><span>{noteText(active).split(/\s+/).filter(Boolean).length} words</span><span>{active.blocks.length} blocks</span>
           <div className="zoom"><button onClick={()=>setZoom(z=>Math.max(.8,z-.1))}><ZoomOut size={13}/></button><span>{Math.round(zoom*100)}%</span><button onClick={()=>setZoom(z=>Math.min(1.2,z+.1))}><ZoomIn size={13}/></button></div>
@@ -781,6 +857,45 @@ export default function Home() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      {mobileSheet === "more" && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
+        <div className="mobile-action-sheet" onClick={e=>e.stopPropagation()}>
+          <div className="sheet-grabber"/><div className="mobile-sheet-title">{active.title || "Untitled"}</div>
+          <button onClick={()=>{setMobileSheet(null);setRightOpen(true);setRightPanel("backlinks")}}><Link2/><span>Backlinks in document</span></button>
+          <button onClick={()=>{setMobileSheet(null);setReadingMode(v=>!v)}}><BookOpen/><span>{readingMode ? "Edit note" : "Reading view"}</span></button>
+          <button onClick={()=>{setMobileSheet(null);setSourceMode(v=>!v)}}><Command/><span>{sourceMode ? "Live editor" : "Source mode"}</span></button>
+          <button onClick={()=>{setMobileSheet(null);setTimeout(()=>document.querySelector<HTMLInputElement>(".note-title")?.focus(),50)}}><FilePenLine/><span>Rename…</span></button>
+          <button onClick={()=>{setMobileSheet(null);setMobileSheet("search")}}><Search/><span>Find…</span></button>
+          <button onClick={()=>{setMobileSheet(null);void shareNote()}}><Share2/><span>Share note</span></button>
+          <button className="danger" onClick={()=>{setMobileSheet(null);void deleteNote()}}><Trash2/><span>Delete note</span></button>
+        </div>
+      </div>}
+
+      {mobileSheet === "search" && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
+        <div className="mobile-search-sheet" onClick={e=>e.stopPropagation()}>
+          <div className="sheet-grabber"/>
+          <div className="mobile-search-field"><Search size={19}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find or create a note…"/><button onClick={()=>{setQuery("");setMobileSheet(null)}}><X/></button></div>
+          <div className="mobile-search-results">{visibleNotes.map(n=><button key={n.id} onClick={()=>{openNote(n);setMobileSheet(null)}}><File size={17}/><span>{n.title||"Untitled"}</span><small>{n.path}</small></button>)}</div>
+        </div>
+      </div>}
+
+      {mobileSheet === "tabs" && <div className="mobile-tabs-overlay" onClick={()=>setMobileSheet(null)}>
+        <div className="mobile-tabs-panel" onClick={e=>e.stopPropagation()}>
+          <div className="mobile-tabs-grid">{tabs.map(id=>{const n=notes.find(x=>x.id===id);if(!n)return null;return <button className={"mobile-tab-card "+(id===active.id?"active":"")} key={id} onClick={()=>{openNote(n);setMobileSheet(null)}}><span>{n.title||"Untitled"}</span><i onClick={e=>{e.stopPropagation();closeTab(id)}}><X size={16}/></i></button>})}</div>
+          <div className="mobile-tabs-footer"><button onClick={()=>void createNote()}><Plus/><span>New note</span></button><b>{tabs.length} {tabs.length===1?"tab":"tabs"}</b><button onClick={()=>setMobileSheet(null)}>Done</button></div>
+        </div>
+      </div>}
+
+      {mobileImageMenu && <div className="mobile-sheet-backdrop" onClick={()=>setMobileImageMenu(null)}>
+        <div className="mobile-action-sheet image-actions-sheet" onClick={e=>e.stopPropagation()}>
+          <div className="sheet-grabber"/><div className="mobile-sheet-title">Screenshot</div>
+          <button onClick={()=>{void copyImage(mobileImageMenu);setMobileImageMenu(null)}}><Copy/><span>Copy image</span></button>
+          <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"){imageTarget.current={blockId:b.id,mode:"replace"};setSheet({blockId:b.id,mode:"replace"})};setMobileImageMenu(null)}}><ImagePlus/><span>Replace image</span></button>
+          <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"&&urls[b.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[b.imageId];a.click()};setMobileImageMenu(null)}}><Download/><span>Save image</span></button>
+          <button onClick={()=>{const b=active.blocks.find(x=>x.id===mobileImageMenu);if(b?.type==="image"&&urls[b.imageId]&&navigator.share){fetch(urls[b.imageId]).then(r=>r.blob()).then(blob=>navigator.share({files:[new File([blob],"screenshot.png",{type:blob.type})]}).catch(()=>{}));}setMobileImageMenu(null)}}><Share2/><span>Share image</span></button>
+          <button className="danger" onClick={()=>{void removeBlock(mobileImageMenu);setMobileImageMenu(null)}}><Trash2/><span>Delete image</span></button>
+        </div>
+      </div>}
 
       {graphOpen&&<Graph notes={notes} active={active} onOpen={openNote} onClose={()=>setGraphOpen(false)}/>}
     </main>
