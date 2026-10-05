@@ -157,3 +157,40 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .settings-nav button.active,.settings-nav button:hover{background:#19212C;color:#E4E8EF}
 .settings-note{background:#0D131B;border-color:#273140;color:#8994A5}
 .statusbar{background:#090D13;border-color:#202733}
+
+/* attachment layout: media stays secondary to writing */
+.image-block{
+  display:block;
+}
+.image-frame{
+  width:min(240px,100%);
+  height:170px;
+  min-height:0;
+  max-height:none;
+  background:linear-gradient(145deg,#141B25,#0D1219);
+}
+.image-frame img{
+  width:100%;
+  height:100%;
+  max-width:none;
+  max-height:none;
+  object-fit:contain;
+}
+@media(max-width:800px){
+  .note-editor{padding:20px 18px 72px}
+  .note-head{margin-bottom:12px}
+  .image-block{
+    margin:14px 0 20px;
+    padding:8px;
+  }
+  .image-frame{
+    width:132px;
+    height:132px;
+  }
+  .image-block textarea{
+    padding:8px 2px 4px;
+  }
+  .image-block figcaption{
+    margin-top:4px;
+  }
+}
