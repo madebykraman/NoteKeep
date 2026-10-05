@@ -346,11 +346,16 @@ export default function Home() {
     return () => { cancelled = true; created.forEach(URL.revokeObjectURL); };
   }, [active?.id, active?.blocks.map(b => b.type === "image" ? b.imageId : "").join("|")]);
 
-  const openNote = (note: Note, newTab = false) => {
+  const openNote = (note: Note, newTab = true) => {
     setActiveId(note.id);
     setTabs(current => {
       if (current.includes(note.id)) return current;
-      return newTab ? [...current, note.id] : [...current, note.id];
+      if (newTab || !activeTab) return [...current, note.id];
+      const index = current.indexOf(activeTab);
+      if (index < 0) return [...current, note.id];
+      const next = [...current];
+      next[index] = note.id;
+      return next;
     });
     setActiveTab(note.id);
     setLeftOpen(window.innerWidth > 800 ? leftOpen : false);
