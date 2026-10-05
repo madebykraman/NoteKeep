@@ -224,6 +224,13 @@ export default function Home() {
     } catch {}
   }, [spellcheckEnabled, inlinePropertiesEnabled, compactInterface, accentTheme, confirmDelete, openLinksInNewTab, exportFrontmatter, hotkeysEnabled, plugins]);
 
+  useEffect(() => {
+    if (!plugins.backlinks && rightPanel === "backlinks") setRightPanel("outline");
+    if (!plugins.commandPalette) setCommandOpen(false);
+    if (!plugins.graph) setGraphOpen(false);
+    if (!plugins.search && mobileSheet === "search") setMobileSheet(null);
+  }, [plugins, rightPanel, mobileSheet]);
+
   const active = notes.find(n => n.id === activeId) || notes[0];
   const visibleNotes = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -1070,7 +1077,7 @@ export default function Home() {
         </div>
       </div>}
 
-      {mobileSheet === "search" && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
+      {mobileSheet === "search" && plugins.search && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
         <div className="mobile-search-sheet" onClick={e=>e.stopPropagation()}>
           <div className="sheet-grabber"/>
           <div className="mobile-search-field"><Search size={19}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){const q=query.trim();if(!q)return;const exact=notes.find(n=>n.title.toLowerCase()===q.toLowerCase());if(exact)openNote(exact);else void createNote(q);setQuery("");setMobileSheet(null)}}} placeholder="Find or create a note…"/><button onClick={()=>{setQuery("");setMobileSheet(null)}}><X/></button></div>
@@ -1096,7 +1103,7 @@ export default function Home() {
         </div>
       </div>}
 
-      {graphOpen&&<Graph notes={notes} active={active} onOpen={openNote} onClose={()=>setGraphOpen(false)}/>}
+      {graphOpen && plugins.graph && <Graph notes={notes} active={active} onOpen={openNote} onClose={()=>setGraphOpen(false)}/>}
     </main>
   );
 }
