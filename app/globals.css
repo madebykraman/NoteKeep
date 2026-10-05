@@ -1623,7 +1623,7 @@ body{overflow:hidden}
 @media(min-width:801px){
   .mobile-tabs-overlay{
     position:fixed!important;inset:0!important;z-index:100!important;
-    pointer-events:none!important;background:transparent!important;backdrop-filter:none!important;
+    pointer-events:auto!important;background:transparent!important;backdrop-filter:none!important;
   }
   .mobile-tabs-panel{
     pointer-events:auto!important;
@@ -1641,3 +1641,5 @@ body{overflow:hidden}
   .mobile-tab-card:hover,.mobile-tab-card.active{background:var(--control)!important;color:var(--text)!important}
   .mobile-tabs-footer{border-top:1px solid var(--border-soft)!important;margin-top:8px!important;padding-top:8px!important}
 }
+
+.settings-actions{display:grid;gap:8px;margin-top:8px}.settings-actions .settings-action{width:100%}
