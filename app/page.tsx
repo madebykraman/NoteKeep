@@ -387,13 +387,20 @@ export default function Home() {
       }
     }
 
-    const portableMarkdown = () => note.blocks.map(b => {
-      if (b.type === "text") return b.text;
-      const path = imagePaths.get(b.imageId);
-      return path
-        ? `![Screenshot](${path})\\n\\n${b.text ? b.text + "\\n\\n" : ""}`
-        : `<!-- Missing screenshot: ${b.imageId} -->`;
-    }).join("\\n").trimEnd();
+    const portableMarkdown = () => {
+      const props = Object.entries(note.properties);
+      const frontmatter = props.length
+        ? "---\\n" + props.map(([k,v]) => k + ": " + v.replace(/\\n/g, " ")).join("\\n") + "\\n---\\n\\n"
+        : "";
+      const body = note.blocks.map(b => {
+        if (b.type === "text") return b.text;
+        const path = imagePaths.get(b.imageId);
+        return path
+          ? `![Screenshot](${path})\\n\\n${b.text ? b.text + "\\n\\n" : ""}`
+          : `<!-- Missing screenshot: ${b.imageId} -->`;
+      }).join("\\n").trimEnd();
+      return frontmatter + "# " + note.title + "\\n\\n" + body + "\\n";
+    };
 
     const portableHtml = () => {
       const esc = (value: string) => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -405,13 +412,11 @@ export default function Home() {
     };
 
     if (format === "md-zip" || format === "html-zip") {
-      const content = format === "md-zip"
-        ? markdownFor(note).replace(/notekeep:\\/\\/imageId/gi, "notekeep://imageId") && portableMarkdown()
-        : portableHtml();
+      const content = format === "md-zip" ? portableMarkdown() : portableHtml();
       const extension = format === "md-zip" ? "md" : "html";
       files[`note.${extension}`] = strToU8(content);
       files["README.txt"] = strToU8(
-        `Exported from NoteKeep\\n\\nOpen note.${extension}. Screenshot attachments are stored in the assets/ folder.\\n`
+        `Exported from NoteKeep\n\nOpen note.${extension}. Screenshot attachments are stored in the assets/ folder.\n`
       );
       downloadBlob(new Blob([zipSync(files)], { type: "application/zip" }), `${baseName}-notekeep.zip`);
     } else {
