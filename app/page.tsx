@@ -815,7 +815,7 @@ export default function Home() {
           <button onMouseDown={e=>{e.preventDefault();wrapFocusedText("**")}} aria-label="Bold"><Bold/></button>
           <button onClick={()=>{const last=active.blocks[active.blocks.length-1];imageTarget.current={blockId:last?.id||"",mode:"insert"};setSheet({blockId:last?.id||"",mode:"insert"})}} aria-label="Attach screenshot"><ImagePlus/></button>
           <button onClick={()=>setEditorFocused(false)} aria-label="Dismiss toolbar"><X/></button>
-        </div>
+        </div>}
         <footer className="statusbar">
           <span>{active.path}</span><span>{noteText(active).split(/\s+/).filter(Boolean).length} words</span><span>{active.blocks.length} blocks</span>
           <div className="zoom"><button onClick={()=>setZoom(z=>Math.max(.8,z-.1))}><ZoomOut size={13}/></button><span>{Math.round(zoom*100)}%</span><button onClick={()=>setZoom(z=>Math.min(1.2,z+.1))}><ZoomIn size={13}/></button></div>
