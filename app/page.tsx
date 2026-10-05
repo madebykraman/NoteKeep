@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
   Command, Copy, Download, File, FilePlus, Folder, FolderOpen, GitBranch,
@@ -642,7 +643,21 @@ export default function Home() {
         <img src={imageViewer} alt="Screenshot preview" onClick={e=>e.stopPropagation()} />
       </div>}
 
-      {settingsOpen&&<div className="modal-backdrop" onClick={()=>setSettingsOpen(false)}><div className="settings-modal" onClick={e=>e.stopPropagation()}><div className="settings-nav"><b>Settings</b>{["Editor","Appearance","Files & Links","Core plugins","Hotkeys","About"].map((x,i)=><button className={i===0?"active":""} key={x}>{x}</button>)}</div><div className="settings-main"><div className="settings-top"><div><small>SETTINGS</small><h2>Editor</h2></div><button onClick={()=>setSettingsOpen(false)}><X size={17}/></button></div><label className="setting-toggle"><span><b>Live Preview</b><small>Render Markdown while you type.</small></span><input type="checkbox" defaultChecked/></label><label className="setting-toggle"><span><b>Spellcheck</b><small>Check spelling in note editors.</small></span><input type="checkbox" defaultChecked/></label><label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" defaultChecked/></label><div className="settings-note">NoteKeep keeps the vault local to this browser. No account or server is required.</div></div></div></div>}
+      <Dialog.Root open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="settings-overlay"/>
+          <Dialog.Content className="settings-modal" aria-describedby={undefined}>
+            <Dialog.Title className="sr-only">NoteKeep Settings</Dialog.Title>
+            <div className="settings-nav"><b>Settings</b>{["Editor","Appearance","Files & Links","Core plugins","Hotkeys","About"].map((x,i)=><button className={i===0?"active":""} key={x}>{x}</button>)}</div>
+            <div className="settings-main"><div className="settings-top"><div><small>SETTINGS</small><h2>Editor</h2></div><Dialog.Close asChild><button aria-label="Close settings"><X size={17}/></button></Dialog.Close></div>
+              <label className="setting-toggle"><span><b>Live Preview</b><small>Render Markdown while you type.</small></span><input type="checkbox" defaultChecked/></label>
+              <label className="setting-toggle"><span><b>Spellcheck</b><small>Check spelling in note editors.</small></span><input type="checkbox" defaultChecked/></label>
+              <label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" defaultChecked/></label>
+              <div className="settings-note">NoteKeep keeps the vault local to this browser. No account or server is required.</div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       {graphOpen&&<Graph notes={notes} active={active} onOpen={openNote} onClose={()=>setGraphOpen(false)}/>}
     </main>
