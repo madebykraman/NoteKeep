@@ -217,7 +217,7 @@ export default function Home() {
       cancelled = true;
       created.forEach(URL.revokeObjectURL);
     };
-  }, [note?.id, note?.blocks]);
+  }, [note?.id, note?.blocks.map(block => block.type === "image" ? block.imageId : "").join("|")]);
 
   useEffect(() => () => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -227,8 +227,18 @@ export default function Home() {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        document.querySelector<HTMLInputElement>(".search input")?.focus();
         setDrawer(true);
+        setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0);
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        const fresh = blank();
+        void putNote(fresh);
+        setNotes(current => [fresh, ...current]);
+        setId(fresh.id);
+        setDrawer(false);
+        setTimeout(() => document.querySelector<HTMLInputElement>(".title")?.focus(), 20);
       }
       if (event.key === "Escape") {
         setSheet(null);
