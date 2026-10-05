@@ -537,10 +537,10 @@ export default function Home() {
             <div className="note-head">
               <input className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" />
               <div className="note-actions">
-                <button className="more-note" onClick={() => setFormatOpen(v => !v)} title="Export note"><Download size={16}/></button>
+                <button className="more-note" onClick={() => setFormatOpen(v => !v)} title="Export note" aria-label="Export note"><Download size={16}/></button>
                 <button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button>
                 {formatOpen && <div className="format-pop">
-                  <div className="format-title">Export as</div>
+                  <div className="format-title">Export note</div>
                   {(["md","txt","html","json"] as NoteFormat[]).map(format => (
                     <button key={format} onClick={() => exportNote(active, format)}>
                       <span>{format === "md" ? "Markdown" : format === "txt" ? "Plain text" : format === "html" ? "HTML" : "JSON"}</span>
@@ -604,7 +604,7 @@ export default function Home() {
                     {urls[block.imageId]&&<button className="image-frame" onClick={() => setImageViewer(urls[block.imageId])} aria-label="Open screenshot preview"><img src={urls[block.imageId]} alt="" draggable={false}/><span className="image-open-hint">Open preview</span></button>}
                     <textarea ref={resize} value={block.text} onChange={e=>{resize(e.currentTarget);updateBlock(block.id,e.target.value)}} placeholder="Describe what this screenshot means…"/>
                     <figcaption>
-                      <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}}><Download size={13}/> Export</button>
+                      <button onClick={()=>{if(urls[block.imageId]){const a=document.createElement("a");a.download="notekeep-"+Date.now()+".png";a.href=urls[block.imageId];a.click()}}} title="Save this screenshot"><Download size={13}/> Save image</button>
                       <button onClick={()=>{imageTarget.current={blockId:block.id,mode:"replace"};setSheet({blockId:block.id,mode:"replace"})}}><ImagePlus size={13}/> Replace</button>
                       <button className="danger" onClick={()=>void removeBlock(block.id)}><Trash2 size={13}/></button>
                     </figcaption>
