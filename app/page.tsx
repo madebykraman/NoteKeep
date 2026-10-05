@@ -6,7 +6,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import {
   Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
-  Bold, Command, Copy, Download, File, FileDown, FilePlus, Folder, FolderOpen, GitBranch,
+  Bold, Command, Copy, Download, File, FileDown, FilePlus, FilePenLine, Folder, FolderOpen, GitBranch,
   Hash, Heading2, ImagePlus, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight,
   Plus, Redo2, Search, Settings, Share2, Sparkles, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
 } from "lucide-react";
