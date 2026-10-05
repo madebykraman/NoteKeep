@@ -476,7 +476,10 @@ export default function Home() {
       <aside className={"left-sidebar " + (leftOpen ? "is-open" : "")}>
         <div className="vault-head">
           <div className="vault-name"><BookOpen size={15} /><span>NoteKeep Vault</span></div>
-          <button className="side-icon" onClick={() => setSettingsOpen(true)} aria-label="Settings"><Settings size={15} /></button>
+          <div className="vault-actions">
+            <button className="side-icon" onClick={() => setSettingsOpen(true)} aria-label="Settings"><Settings size={15} /></button>
+            <button className="side-icon mobile-close-sidebar" onClick={() => setLeftOpen(false)} aria-label="Close sidebar"><X size={15} /></button>
+          </div>
         </div>
         <div className="ribbon">
           <button onClick={() => void createNote()} title="New note"><FilePlus size={16} /></button>
@@ -501,6 +504,7 @@ export default function Home() {
       </aside>
 
       <section className="main-area">
+        {leftOpen && <button className="sidebar-scrim" onClick={() => setLeftOpen(false)} aria-label="Close sidebar" />}
         <header className="appbar">
           <div className="appbar-left">
             <button className="chrome-icon" onClick={() => setLeftOpen(v => !v)} title="Toggle left sidebar"><PanelLeft size={17}/></button>
