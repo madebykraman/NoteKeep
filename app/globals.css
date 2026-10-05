@@ -194,3 +194,72 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
     margin-top:4px;
   }
 }
+
+/* mobile UX: remove duplicate note chrome and keep writing dominant */
+@media(max-width:800px){
+  .appbar{
+    height:42px;
+    padding:0 10px;
+  }
+  .breadcrumbs{
+    display:none;
+  }
+  .appbar-left{
+    flex:1;
+  }
+  .appbar-actions{
+    gap:3px;
+  }
+  .appbar-actions .save-label{
+    display:none;
+  }
+  .tabs{
+    height:40px;
+  }
+  .tab{
+    height:40px;
+    min-width:150px;
+    max-width:calc(100vw - 42px);
+  }
+  .note-editor{
+    padding:24px 18px 76px;
+  }
+  .note-head{
+    margin-bottom:10px;
+    padding-bottom:0;
+  }
+  .note-title{
+    font-size:32px;
+    line-height:1.06;
+  }
+  .note-actions{
+    gap:0;
+  }
+  .more-note{
+    width:32px;
+    height:32px;
+  }
+  .text-block .block-tools{
+    height:0;
+    margin:0;
+    overflow:hidden;
+    opacity:0;
+    pointer-events:none;
+    transform:translateY(-3px);
+    transition:opacity .14s ease,transform .14s ease,height .14s ease;
+  }
+  .text-block:focus-within .block-tools{
+    height:30px;
+    margin:0 0 5px;
+    opacity:1;
+    pointer-events:auto;
+    transform:none;
+  }
+  .text-block textarea{
+    padding-bottom:10px;
+  }
+  .insert-line{
+    margin-top:18px;
+    padding-top:10px;
+  }
+}
