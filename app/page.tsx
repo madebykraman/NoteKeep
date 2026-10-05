@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { zipSync, strToU8 } from "fflate";
 import {
   Archive, ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronRight,
-  Command, Copy, Download, File, FilePlus, Folder, FolderOpen, GitBranch,
+  Command, Copy, Download, File, FileDown, File, FilePlus, Folder, FolderOpen, GitBranch,
   Hash, ImagePlus, Link2, Menu, MoreHorizontal, PanelLeft, PanelRight,
   Plus, Search, Settings, Sparkles, Tags, Trash2, X, ZoomIn, ZoomOut
 } from "lucide-react";
@@ -313,7 +315,7 @@ export default function Home() {
     setPropertyKey(""); setPropertyValue("");
   };
 
-  type NoteFormat = "md" | "txt" | "html" | "json";
+  type NoteFormat = "md" | "md-zip" | "txt" | "html" | "html-zip" | "json";
 
   const markdownFor = (note: Note) => {
     const props = Object.entries(note.properties);
@@ -350,24 +352,81 @@ export default function Home() {
     updatedAt: note.updatedAt,
   }, null, 2);
 
-  const exportNote = (note = active, format: NoteFormat = "md") => {
-    if (!note) return;
-    const content = format === "md" ? markdownFor(note)
-      : format === "txt" ? plainTextFor(note)
-      : format === "html" ? htmlFor(note)
-      : jsonFor(note);
-    const mime = format === "md" ? "text/markdown;charset=utf-8"
-      : format === "txt" ? "text/plain;charset=utf-8"
-      : format === "html" ? "text/html;charset=utf-8"
-      : "application/json;charset=utf-8";
-    const ext = format === "md" ? "md" : format;
-    const blob = new Blob([content], { type: mime });
+  const safeFileName = (value: string) =>
+    value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "Untitled";
+
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.download = (note.path.replace(/\.md$/i, "") || note.title || "Untitled") + "." + ext;
+    a.download = filename;
     a.href = url;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const exportNote = async (note = active, format: NoteFormat = "md") => {
+    if (!note) return;
+
+    const baseName = safeFileName(note.path.replace(/\.md$/i, "") || note.title || "Untitled");
+    const bundled = format === "md-zip" || format === "html-zip";
+    const imageBlocks = note.blocks.filter((b): b is Extract<Block, { type: "image" }> => b.type === "image");
+    const imagePaths = new Map<string, string>();
+    const files: Record<string, Uint8Array> = {};
+
+    if (bundled) {
+      let assetIndex = 0;
+      for (const block of imageBlocks) {
+        const image = await getImage(block.imageId);
+        if (!image) continue;
+        assetIndex += 1;
+        const type = image.blob.type || "image/png";
+        const extension = type.split("/")[1]?.split("+")[0] || "png";
+        const path = `assets/${String(assetIndex).padStart(2, "0")}-screenshot.${extension}`;
+        imagePaths.set(block.imageId, path);
+        files[path] = new Uint8Array(await image.blob.arrayBuffer());
+      }
+    }
+
+    const portableMarkdown = () => note.blocks.map(b => {
+      if (b.type === "text") return b.text;
+      const path = imagePaths.get(b.imageId);
+      return path
+        ? `![Screenshot](${path})\\n\\n${b.text ? b.text + "\\n\\n" : ""}`
+        : `<!-- Missing screenshot: ${b.imageId} -->`;
+    }).join("\\n").trimEnd();
+
+    const portableHtml = () => {
+      const esc = (value: string) => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      const body = note.blocks.map(b => b.type === "image"
+        ? `<figure><img src="${esc(imagePaths.get(b.imageId) || "")}" alt="Screenshot"><figcaption>${esc(b.text || "")}</figcaption></figure>`
+        : `<p>${esc(b.text).replace(/\\n/g,"<br>")}</p>`
+      ).join("\\n");
+      return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(note.title)}</title></head><body><main><h1>${esc(note.title)}</h1>${body}</main></body></html>`;
+    };
+
+    if (format === "md-zip" || format === "html-zip") {
+      const content = format === "md-zip"
+        ? markdownFor(note).replace(/notekeep:\\/\\/imageId/gi, "notekeep://imageId") && portableMarkdown()
+        : portableHtml();
+      const extension = format === "md-zip" ? "md" : "html";
+      files[`note.${extension}`] = strToU8(content);
+      files["README.txt"] = strToU8(
+        `Exported from NoteKeep\\n\\nOpen note.${extension}. Screenshot attachments are stored in the assets/ folder.\\n`
+      );
+      downloadBlob(new Blob([zipSync(files)], { type: "application/zip" }), `${baseName}-notekeep.zip`);
+    } else {
+      const content = format === "md" ? markdownFor(note)
+        : format === "txt" ? plainTextFor(note)
+        : format === "html" ? htmlFor(note)
+        : jsonFor(note);
+      const mime = format === "md" ? "text/markdown;charset=utf-8"
+        : format === "txt" ? "text/plain;charset=utf-8"
+        : format === "html" ? "text/html;charset=utf-8"
+        : "application/json;charset=utf-8";
+      const ext = format === "md" ? "md" : format;
+      downloadBlob(new Blob([content], { type: mime }), `${baseName}.${ext}`);
+    }
+
     setFormatOpen(false);
     setStatus("Exported");
   };
@@ -537,7 +596,22 @@ export default function Home() {
             <div className="note-head">
               <input className="note-title" value={active.title} onChange={e => update({ title: e.target.value, path: e.target.value.trim() ? e.target.value.trim() + ".md" : "Untitled.md" })} placeholder="Untitled" />
               <div className="note-actions">
-                <button className="more-note" onClick={() => setFormatOpen(v => !v)} title="Export note" aria-label="Export note"><Download size={16}/></button>
+                <DropdownMenu.Root open={formatOpen} onOpenChange={setFormatOpen}>
+                  <DropdownMenu.Trigger asChild>
+                    <button className="more-note" title="Export note" aria-label="Export note"><FileDown size={16}/></button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content className="export-menu" align="end" sideOffset={8}>
+                      <div className="format-title">Export note</div>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "md-zip")}><span>Markdown + images</span><small>.zip</small></DropdownMenu.Item>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "md")}><span>Markdown only</span><small>.md</small></DropdownMenu.Item>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "txt")}><span>Plain text</span><small>.txt</small></DropdownMenu.Item>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "html-zip")}><span>HTML + images</span><small>.zip</small></DropdownMenu.Item>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "html")}><span>HTML only</span><small>.html</small></DropdownMenu.Item>
+                      <DropdownMenu.Item className="export-item" onSelect={() => void exportNote(active, "json")}><span>NoteKeep JSON</span><small>.json</small></DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
                 <button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button>
                 {formatOpen && <div className="format-pop">
                   <div className="format-title">Export note</div>
