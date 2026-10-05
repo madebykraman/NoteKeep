@@ -8,7 +8,7 @@ import {
   BookOpen, ChevronDown, ChevronRight,
   Bold, CalendarDays, Command, Copy, Download, File, FileDown, FilePlus, FilePenLine, FolderOpen,
   Hash, Heading2, ImagePlus, Info, Link2, MoreHorizontal, PanelLeft, PanelRight, PanelsTopLeft,
-  Palette, Plus, Puzzle, Redo2, Search, Settings, Share2, Sparkles, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
+  Palette, Plus, Puzzle, Redo2, Search, Settings, Share2, Tags, Trash2, Undo2, X, ZoomIn, ZoomOut
 } from "lucide-react";
 
 type Block =
