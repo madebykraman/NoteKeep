@@ -1,0 +1,21 @@
+{
+  "name": "NoteKeep",
+  "short_name": "NoteKeep",
+  "description": "Local-first notes with contextual screenshot commentary.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f1013",
+  "theme_color": "#0f1013",
+  "lang": "en",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
