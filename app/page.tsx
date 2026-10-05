@@ -26,6 +26,10 @@ type Note = {
 };
 
 type ImageRecord = { id: string; blob: Blob };
+type PluginFlags = {
+  search: boolean; commandPalette: boolean; graph: boolean; properties: boolean;
+  backlinks: boolean; dailyNotes: boolean; sourceMode: boolean;
+};
 
 const DB = "notekeep";
 const VERSION = 9;
@@ -111,6 +115,36 @@ function tagsIn(note: Note) {
   return Array.from(new Set((noteText(note).match(/(^|\s)#([a-zA-Z0-9_-]+)/g) || []).map(x => x.trim().slice(1))));
 }
 
+function renderInline(value: string, onLink: (target: string) => void) {
+  return value.split(/(\[\[[^\]]+\]\]|\*\*[^*]+\*\*|#[a-zA-Z0-9_-]+)/g).map((part, i) => {
+    if (part.startsWith("[[") && part.endsWith("]]")) {
+      const target = part.slice(2, -2).split("|")[0].trim();
+      return <button type="button" className="rendered-link" key={i} onClick={() => onLink(target)}>[[{target}]]</button>;
+    }
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
+    if (/^#[a-zA-Z0-9_-]+$/.test(part)) return <span className="rendered-tag" key={i}>{part}</span>;
+    return <span key={i}>{part}</span>;
+  });
+}
+
+function renderMarkdownBlock(value: string, onLink: (target: string) => void) {
+  return <div className="rendered-block">
+    {value.split("\n").map((line, i) => {
+      const heading = line.match(/^(#{1,6})\s+(.+)$/);
+      if (!line.trim()) return <div className="rendered-spacer" key={i} aria-hidden="true"/>;
+      const content = heading ? renderInline(heading[2], onLink) : renderInline(line, onLink);
+      if (!heading) return <p key={i}>{content}</p>;
+      const level = heading[1].length;
+      if (level === 1) return <h1 key={i}>{content}</h1>;
+      if (level === 2) return <h2 key={i}>{content}</h2>;
+      if (level === 3) return <h3 key={i}>{content}</h3>;
+      if (level === 4) return <h4 key={i}>{content}</h4>;
+      if (level === 5) return <h5 key={i}>{content}</h5>;
+      return <h6 key={i}>{content}</h6>;
+    })}
+  </div>;
+}
+
 export default function Home() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeId, setActiveId] = useState("");
@@ -134,6 +168,15 @@ export default function Home() {
   const [spellcheckEnabled, setSpellcheckEnabled] = useState(true);
   const [inlinePropertiesEnabled, setInlinePropertiesEnabled] = useState(true);
   const [compactInterface, setCompactInterface] = useState(true);
+  const [accentTheme, setAccentTheme] = useState<"violet" | "blue" | "cyan" | "amber">("violet");
+  const [confirmDelete, setConfirmDelete] = useState(true);
+  const [openLinksInNewTab, setOpenLinksInNewTab] = useState(false);
+  const [exportFrontmatter, setExportFrontmatter] = useState(true);
+  const [hotkeysEnabled, setHotkeysEnabled] = useState(true);
+  const [plugins, setPlugins] = useState<PluginFlags>({
+    search: true, commandPalette: true, graph: true, properties: true,
+    backlinks: true, dailyNotes: true, sourceMode: true
+  });
   const [graphOpen, setGraphOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [sourceMode, setSourceMode] = useState(false);
@@ -156,6 +199,12 @@ export default function Home() {
       if (typeof saved.spellcheck === "boolean") setSpellcheckEnabled(saved.spellcheck);
       if (typeof saved.inlineProperties === "boolean") setInlinePropertiesEnabled(saved.inlineProperties);
       if (typeof saved.compactInterface === "boolean") setCompactInterface(saved.compactInterface);
+      if (["violet","blue","cyan","amber"].includes(saved.accentTheme)) setAccentTheme(saved.accentTheme);
+      if (typeof saved.confirmDelete === "boolean") setConfirmDelete(saved.confirmDelete);
+      if (typeof saved.openLinksInNewTab === "boolean") setOpenLinksInNewTab(saved.openLinksInNewTab);
+      if (typeof saved.exportFrontmatter === "boolean") setExportFrontmatter(saved.exportFrontmatter);
+      if (typeof saved.hotkeysEnabled === "boolean") setHotkeysEnabled(saved.hotkeysEnabled);
+      if (saved.plugins && typeof saved.plugins === "object") setPlugins(current => ({...current, ...saved.plugins}));
     } catch {}
   }, []);
 
@@ -164,10 +213,16 @@ export default function Home() {
       localStorage.setItem("notekeep-preferences", JSON.stringify({
         spellcheck: spellcheckEnabled,
         inlineProperties: inlinePropertiesEnabled,
-        compactInterface
+        compactInterface,
+        accentTheme,
+        confirmDelete,
+        openLinksInNewTab,
+        exportFrontmatter,
+        hotkeysEnabled,
+        plugins
       }));
     } catch {}
-  }, [spellcheckEnabled, inlinePropertiesEnabled, compactInterface]);
+  }, [spellcheckEnabled, inlinePropertiesEnabled, compactInterface, accentTheme, confirmDelete, openLinksInNewTab, exportFrontmatter, hotkeysEnabled, plugins]);
 
   const active = notes.find(n => n.id === activeId) || notes[0];
   const visibleNotes = useMemo(() => {
@@ -408,7 +463,7 @@ export default function Home() {
   };
 
   const deleteNote = async () => {
-    if (!active || !confirm("Delete this note?")) return;
+    if (!active || (confirmDelete && !confirm("Delete this note?"))) return;
     for (const b of active.blocks) if (b.type === "image") await del("images", b.imageId);
     await del("notes", active.id);
     const left = notes.filter(n => n.id !== active.id);
@@ -428,7 +483,7 @@ export default function Home() {
 
   const markdownFor = (note: Note) => {
     const props = Object.entries(note.properties);
-    const frontmatter = props.length
+    const frontmatter = exportFrontmatter && props.length
       ? "---\n" + props.map(([k,v]) => k + ": " + v.replace(/\n/g, " ")).join("\n") + "\n---\n\n"
       : "";
     const body = note.blocks.map(b => b.type === "text"
@@ -644,8 +699,15 @@ export default function Home() {
   const createLinkedNote = async (link: string) => {
     const title = link.split("/").pop()?.trim() || "Untitled";
     const existing = notes.find(n => n.title.toLowerCase() === title.toLowerCase());
-    if (existing) return openNote(existing, true);
+    if (existing) return openNote(existing, openLinksInNewTab);
     await createNote(title);
+  };
+
+  const followLink = (link: string) => {
+    const title = link.split("/").pop()?.trim() || "Untitled";
+    const existing = notes.find(n => n.title.toLowerCase() === title.toLowerCase());
+    if (existing) openNote(existing, openLinksInNewTab);
+    else void createLinkedNote(title);
   };
 
   const closeTab = (id: string) => {
@@ -663,15 +725,15 @@ export default function Home() {
   const runCommand = (command: string) => {
     setCommandOpen(false); setCommandQuery("");
     if (command === "New note") void createNote();
-    if (command === "Search") { setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 30); }
-    if (command === "Graph view") setGraphOpen(true);
+    if (command === "Search" && plugins.search) { setLeftOpen(true); if (window.innerWidth <= 800) setMobileSheet("search"); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 30); }
+    if (command === "Graph view" && plugins.graph) setGraphOpen(true);
     if (command === "Export note") setFormatOpen(true);
     if (command === "Import note") importFile.current?.click();
     if (command === "Toggle right sidebar") setRightOpen(v => !v);
     if (command === "Toggle left sidebar") setLeftOpen(v => !v);
-    if (command === "Toggle source mode") setSourceMode(v => !v);
+    if (command === "Toggle source mode" && plugins.sourceMode) setSourceMode(v => !v);
     if (command === "Open settings") setSettingsOpen(true);
-    if (command === "Daily note") {
+    if (command === "Daily note" && plugins.dailyNotes) {
       const title = new Date().toISOString().slice(0, 10);
       const existing = notes.find(n => n.title === title);
       if (existing) openNote(existing, true); else void createNote(title);
@@ -699,13 +761,21 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handler);
   });
 
-  const commands = ["New note", "Search", "Daily note", "Graph view", "Export note", "Import note", "Toggle left sidebar", "Toggle right sidebar", "Toggle source mode", "Open settings"];
+  const commands = [
+    "New note",
+    ...(plugins.search ? ["Search"] : []),
+    ...(plugins.dailyNotes ? ["Daily note"] : []),
+    ...(plugins.graph ? ["Graph view"] : []),
+    "Export note", "Import note", "Toggle left sidebar", "Toggle right sidebar",
+    ...(plugins.sourceMode ? ["Toggle source mode"] : []),
+    "Open settings"
+  ];
   const filteredCommands = commands.filter(c => c.toLowerCase().includes(commandQuery.toLowerCase()));
 
   if (!ready || !active) return <main className="loading"><div><div className="loading-mark" /><span>NoteKeep</span></div></main>;
 
   return (
-    <main className={"obsidian-app " + (compactInterface ? "compact-interface" : "")}>
+    <main className={"obsidian-app opal-ui " + (compactInterface ? "compact-interface" : "")} data-accent={accentTheme}>
       <aside className={"left-sidebar " + (leftOpen ? "is-open" : "")}>
         <div className="vault-head">
           <div className="vault-name"><BookOpen size={15} /><span>NoteKeep Vault</span></div>
@@ -716,10 +786,10 @@ export default function Home() {
         </div>
         <div className="ribbon">
           <button onClick={() => void createNote()} title="New note"><FilePlus size={16} /></button>
-          <button onClick={() => setGraphOpen(true)} title="Graph"><GitBranch size={16} /></button>
-          <button onClick={() => setCommandOpen(true)} title="Command palette"><Command size={16} /></button>
+          {plugins.graph && <button onClick={() => setGraphOpen(true)} title="Graph"><GitBranch size={16} /></button>}
+          {plugins.commandPalette && <button onClick={() => setCommandOpen(true)} title="Command palette"><Command size={16} /></button>}
         </div>
-        <label className="vault-search"><Search size={14}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search vault" /><kbd>⌘ K</kbd></label>
+        {plugins.search && <label className="vault-search"><Search size={14}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search vault" /><kbd>⌘ K</kbd></label>}
         <div className="explorer-head"><span>EXPLORER</span><div><button onClick={() => void createNote()} title="New note"><Plus size={13}/></button></div></div>
         <div className="file-tree">
           <div className="folder-row"><ChevronDown size={13}/><FolderOpen size={14}/><span>Notes</span></div>
@@ -731,7 +801,7 @@ export default function Home() {
           {!visibleNotes.length && <div className="empty-tree">No matching notes</div>}
         </div>
         <div className="left-footer">
-          <button onClick={() => setGraphOpen(true)}><GitBranch size={14}/> Graph view</button>
+          {plugins.graph && <button onClick={() => setGraphOpen(true)}><GitBranch size={14}/> Graph view</button>}
           <button onClick={() => setSettingsOpen(true)}><Settings size={14}/> Settings</button>
         </div>
       </aside>
@@ -794,7 +864,7 @@ export default function Home() {
                     </DropdownMenu.Content>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Root>
-                <button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button>
+                {plugins.properties && <button className="more-note" onClick={() => setPropertiesOpen(v => !v)} title="Properties"><MoreHorizontal size={18}/></button>}
 
               </div>
             </div>
@@ -805,7 +875,7 @@ export default function Home() {
               </div>
             )}
 
-            {propertiesOpen && (
+            {plugins.properties && propertiesOpen && (
               <div className="properties-pop">
                 <div className="pop-head"><b>Properties</b><button onClick={() => setPropertiesOpen(false)}><X size={14}/></button></div>
                 {Object.entries(active.properties).map(([k,v]) => <div className="property-row" key={k}><input value={k} readOnly/><input value={v} onChange={e => update({properties:{...active.properties,[k]:e.target.value}})}/><button onClick={() => { const p={...active.properties}; delete p[k]; update({properties:p}); }}><X size={13}/></button></div>)}
@@ -906,7 +976,7 @@ export default function Home() {
       </section>
 
       {rightOpen && <aside className="right-sidebar">
-        <div className="right-tabs"><button className={rightPanel==="backlinks"?"active":""} onClick={()=>setRightPanel("backlinks")}><Link2 size={13}/> Backlinks</button><button className={rightPanel==="outline"?"active":""} onClick={()=>setRightPanel("outline")}><ListIcon/> Outline</button><button className={rightPanel==="tags"?"active":""} onClick={()=>setRightPanel("tags")}><Hash size={13}/> Tags</button></div>
+        <div className="right-tabs">{plugins.backlinks && <button className={rightPanel==="backlinks"?"active":""} onClick={()=>setRightPanel("backlinks")}><Link2 size={13}/> Backlinks</button>}<button className={rightPanel==="outline"?"active":""} onClick={()=>setRightPanel("outline")}><ListIcon/> Outline</button><button className={rightPanel==="tags"?"active":""} onClick={()=>setRightPanel("tags")}><Hash size={13}/> Tags</button></div>
         {rightPanel==="backlinks"&&<div className="side-content"><h4>Linked mentions</h4>{incoming.length?<>{incoming.map(n=><button className="mention" key={n.id} onClick={()=>openNote(n)}><b>{n.title}</b><span>{noteText(n).slice(0,110)||"No text"}</span></button>)}</>:<div className="side-empty">No backlinks yet.</div>}<h4>Outgoing links</h4>{outgoing.length?outgoing.map(n=><button className="mention compact" key={n.id} onClick={()=>openNote(n)}><Link2 size={12}/>{n.title}</button>):<div className="side-empty">No outgoing links.</div>}{unresolvedLinks.length>0&&<><h4>Unresolved links</h4>{unresolvedLinks.map(link=><button className="mention compact" key={link} onClick={()=>void createLinkedNote(link)}><Plus size={12}/>Create “{link}”</button>)}</>}</div>}
         {rightPanel==="outline"&&<div className="side-content"><h4>Outline</h4>{outline.length?outline.map(item=><button className="outline-row" key={item.id} style={{paddingLeft:7+item.level*9}} onClick={()=>document.getElementById("block-"+item.id.split("-")[0])?.scrollIntoView({behavior:"smooth",block:"center"})}>{item.text}</button>):<div className="side-empty">Add Markdown headings such as # Heading or ## Section to build an outline.</div>}</div>}
         {rightPanel==="tags"&&<div className="side-content"><h4>All tags</h4>{allTags.map(([tag,count])=><button className="tag-row" key={tag} onClick={()=>setQuery("#"+tag)}><Hash size={12}/>{tag}<span>{count}</span></button>)}</div>}
@@ -918,7 +988,7 @@ export default function Home() {
 
       {sheet&&<div className="modal-backdrop" onClick={()=>setSheet(null)}><div className="image-sheet" onClick={e=>e.stopPropagation()}><div className="grabber"/><div className="sheet-title"><b>{sheet.mode==="replace"?"Replace screenshot":"Add screenshot"}</b><button onClick={()=>setSheet(null)}><X size={16}/></button></div><button onClick={()=>{imageTarget.current=sheet;setSheet(null);camera.current?.click()}}><CameraIcon/><span><b>Camera</b><small>Capture an image</small></span></button><button onClick={()=>{imageTarget.current=sheet;setSheet(null);photos.current?.click()}}><ImagePlus size={19}/><span><b>Photos</b><small>Choose from your device</small></span></button></div></div>}
 
-      {commandOpen&&<div className="modal-backdrop" onClick={()=>setCommandOpen(false)}><div className="command-palette" onClick={e=>e.stopPropagation()}><div className="command-search"><Command size={16}/><input autoFocus className="command-input" value={commandQuery} onChange={e=>setCommandQuery(e.target.value)} placeholder="Type a command…"/><kbd>ESC</kbd></div><div className="command-list">{filteredCommands.map(c=><button key={c} onClick={()=>runCommand(c)}><span>{c}</span><ChevronRight size={14}/></button>)}{!filteredCommands.length&&<div className="command-empty">No commands found</div>}</div></div></div>}
+      {commandOpen && plugins.commandPalette && <div className="modal-backdrop" onClick={()=>setCommandOpen(false)}><div className="command-palette" onClick={e=>e.stopPropagation()}><div className="command-search"><Command size={16}/><input autoFocus className="command-input" value={commandQuery} onChange={e=>setCommandQuery(e.target.value)} placeholder="Type a command…"/><kbd>ESC</kbd></div><div className="command-list">{filteredCommands.map(c=><button key={c} onClick={()=>runCommand(c)}><span>{c}</span><ChevronRight size={14}/></button>)}{!filteredCommands.length&&<div className="command-empty">No commands found</div>}</div></div></div>}
 
       {imageViewer&&<div className="image-viewer" onClick={()=>setImageViewer(null)}>
         <button className="image-viewer-close" onClick={()=>setImageViewer(null)} aria-label="Close image preview"><X size={20}/></button>
@@ -935,23 +1005,44 @@ export default function Home() {
               {settingsTab==="Editor" && <>
                 <label className="setting-toggle"><span><b>Spellcheck</b><small>Use the browser spelling engine while editing.</small></span><input type="checkbox" checked={spellcheckEnabled} onChange={e=>setSpellcheckEnabled(e.target.checked)}/></label>
                 <label className="setting-toggle"><span><b>Inline properties</b><small>Show note metadata above the document.</small></span><input type="checkbox" checked={inlinePropertiesEnabled} onChange={e=>setInlinePropertiesEnabled(e.target.checked)}/></label>
+                <div className="settings-section-label">Editor behavior</div>
+                <div className="settings-note"><b>Live editor</b><br/>Markdown stays editable as text. Reading View renders headings, emphasis, tags and wikilinks.</div>
               </>}
               {settingsTab==="Appearance" && <>
-                <div className="settings-note"><b>Dark graphite</b><br/>The mobile-first NoteKeep theme uses layered semantic surfaces, Geist typography and a restrained accent.</div>
+                <div className="settings-note"><b>Opal Night</b><br/>Soft luminous surfaces, generous spacing and restrained color accents tuned for long writing sessions.</div>
+                <div className="settings-section-label">Accent</div>
+                <div className="accent-picker" role="group" aria-label="Accent color">
+                  {(["violet","blue","cyan","amber"] as const).map(x=><button type="button" key={x} className={"accent-swatch "+x+(accentTheme===x?" active":"")} onClick={()=>setAccentTheme(x)} aria-label={x+" accent"}><span/></button>)}
+                </div>
                 <label className="setting-toggle"><span><b>Compact interface</b><small>Reduce secondary chrome and keep writing dominant.</small></span><input type="checkbox" checked={compactInterface} onChange={e=>setCompactInterface(e.target.checked)}/></label>
               </>}
               {settingsTab==="Files & Links" && <>
-                <div className="settings-note"><b>Local vault</b><br/>Notes and screenshot attachments are stored in this browser's IndexedDB. Markdown imports, exports and portable ZIP bundles are supported.</div>
-                <div className="settings-note"><b>Links</b><br/>Use [[Note Name]] for wikilinks. Unresolved links can create a new note from the Backlinks panel.</div>
+                <label className="setting-toggle"><span><b>Confirm before deleting</b><small>Ask before permanently removing a note and its screenshots.</small></span><input type="checkbox" checked={confirmDelete} onChange={e=>setConfirmDelete(e.target.checked)}/></label>
+                <label className="setting-toggle"><span><b>Open wikilinks in new tab</b><small>Follow [[links]] without replacing the current tab.</small></span><input type="checkbox" checked={openLinksInNewTab} onChange={e=>setOpenLinksInNewTab(e.target.checked)}/></label>
+                <label className="setting-toggle"><span><b>Export frontmatter</b><small>Include note properties in Markdown exports.</small></span><input type="checkbox" checked={exportFrontmatter} onChange={e=>setExportFrontmatter(e.target.checked)}/></label>
+                <div className="settings-note"><b>Local vault</b><br/>{notes.length} note{notes.length===1?"":"s"} indexed in this browser's IndexedDB.</div>
               </>}
               {settingsTab==="Core plugins" && <>
-                {["Search","Command palette","Graph view","Properties","Backlinks","Daily notes","Source mode"].map(x=><div className="setting-row" key={x}><b>{x}</b><span>Enabled</span></div>)}
+                {(Object.entries({
+                  search:["Search","Search the vault and create notes from the mobile finder."],
+                  commandPalette:["Command palette","Run actions without reaching for the sidebar."],
+                  graph:["Graph view","Explore wikilink relationships visually."],
+                  properties:["Properties","Edit note metadata and frontmatter."],
+                  backlinks:["Backlinks","See incoming links and unresolved links."],
+                  dailyNotes:["Daily notes","Create or reopen today's date-named note."],
+                  sourceMode:["Source mode","Edit the complete Markdown source directly."]
+                }) as [keyof PluginFlags,string[]][]).map(([key,meta])=><label className="setting-toggle plugin-setting" key={key}><span><b>{meta[0]}</b><small>{meta[1]}</small></span><input type="checkbox" checked={plugins[key]} onChange={e=>setPlugins(current=>({...current,[key]:e.target.checked}))}/></label>)}
               </>}
               {settingsTab==="Hotkeys" && <>
+                <label className="setting-toggle"><span><b>Keyboard shortcuts</b><small>Enable global NoteKeep shortcuts.</small></span><input type="checkbox" checked={hotkeysEnabled} onChange={e=>setHotkeysEnabled(e.target.checked)}/></label>
                 {["⌘ / Ctrl + P — Command palette","⌘ / Ctrl + K — Search","⌘ / Ctrl + N — New note","⌘ / Ctrl + O — Import file","Escape — Close overlays"].map(x=><div className="setting-row" key={x}><span>{x}</span></div>)}
+                <button className="settings-action" type="button" onClick={()=>setHotkeysEnabled(true)}>Reset shortcuts</button>
               </>}
-              {settingsTab==="About" && <div className="settings-note"><b>NoteKeep</b><br/>Local-first notes with an Obsidian-style knowledge foundation and contextual screenshot commentary.<br/><br/>No account, sync service or cloud vault is required.</div>}
-            </div>
+              {settingsTab==="About" && <>
+                <div className="settings-note"><b>NoteKeep 0.1.0</b><br/>Local-first notes with an Obsidian-style knowledge foundation and contextual screenshot commentary.<br/><br/>Storage: {notes.length} notes in IndexedDB.</div>
+                <button className="settings-action" type="button" onClick={()=>downloadBlob(new Blob([JSON.stringify({app:"NoteKeep",version:"0.1.0",notes:notes.length,plugins,preferences:{spellcheckEnabled,inlinePropertiesEnabled,compactInterface,accentTheme,confirmDelete,openLinksInNewTab,exportFrontmatter,hotkeysEnabled}},null,2)],{type:"application/json"}),"notekeep-diagnostics.json")}>Export diagnostics</button>
+                <button className="settings-action" type="button" onClick={()=>{setSpellcheckEnabled(true);setInlinePropertiesEnabled(true);setCompactInterface(true);setAccentTheme("violet");setConfirmDelete(true);setOpenLinksInNewTab(false);setExportFrontmatter(true);setHotkeysEnabled(true);setPlugins({search:true,commandPalette:true,graph:true,properties:true,backlinks:true,dailyNotes:true,sourceMode:true});setStatus("Preferences reset")}}>Reset preferences</button>
+              </>}            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -959,20 +1050,20 @@ export default function Home() {
       {mobileSheet === "more" && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
         <div className="mobile-action-sheet" onClick={e=>e.stopPropagation()}>
           <div className="sheet-grabber"/><div className="mobile-sheet-title">{active.title || "Untitled"}</div>
-          <button onClick={()=>setMobileSheet("backlinks")}><Link2/><span>Backlinks in document</span></button>
+          {plugins.backlinks && <button onClick={()=>setMobileSheet("backlinks")}><Link2/><span>Backlinks in document</span></button>}
           <button onClick={()=>{setMobileSheet(null);setSourceMode(false);setReadingMode(v=>!v)}}><BookOpen/><span>{readingMode ? "Edit note" : "Reading view"}</span></button>
-          <button onClick={()=>{setMobileSheet(null);setReadingMode(false);setSourceMode(v=>!v)}}><Command/><span>{sourceMode ? "Live editor" : "Source mode"}</span></button>
+          {plugins.sourceMode && <button onClick={()=>{setMobileSheet(null);setReadingMode(false);setSourceMode(v=>!v)}}><Command/><span>{sourceMode ? "Live editor" : "Source mode"}</span></button>}
           <button onClick={()=>{setMobileSheet(null);setReadingMode(false);setTimeout(()=>document.querySelector<HTMLInputElement>(".note-title")?.focus(),50)}}><FilePenLine/><span>Rename…</span></button>
           <button onClick={()=>{setMobileSheet("search")}}><Search/><span>Find…</span></button>
-          <button onClick={()=>{setMobileSheet(null);setCommandOpen(true)}}><Command/><span>Command palette</span></button>
-          <button onClick={()=>{setMobileSheet(null);setGraphOpen(true)}}><GitBranch/><span>Graph view</span></button>
-          <button onClick={()=>{setMobileSheet(null);const title=new Date().toISOString().slice(0,10);const existing=notes.find(n=>n.title===title);if(existing)openNote(existing,true);else void createNote(title)}}><CalendarDays/><span>Daily note</span></button>
+          {plugins.commandPalette && <button onClick={()=>{setMobileSheet(null);setCommandOpen(true)}}><Command/><span>Command palette</span></button>}
+          {plugins.graph && <button onClick={()=>{setMobileSheet(null);setGraphOpen(true)}}><GitBranch/><span>Graph view</span></button>}
+          {plugins.dailyNotes && <button onClick={()=>{setMobileSheet(null);const title=new Date().toISOString().slice(0,10);const existing=notes.find(n=>n.title===title);if(existing)openNote(existing,true);else void createNote(title)}}><CalendarDays/><span>Daily note</span></button>}
           <button onClick={()=>{setMobileSheet(null);void shareNote()}}><Share2/><span>Share note</span></button>
           <button className="danger" onClick={()=>{setMobileSheet(null);void deleteNote()}}><Trash2/><span>Delete note</span></button>
         </div>
       </div>}
 
-      {mobileSheet === "backlinks" && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
+      {mobileSheet === "backlinks" && plugins.backlinks && <div className="mobile-sheet-backdrop" onClick={()=>setMobileSheet(null)}>
         <div className="mobile-action-sheet" onClick={e=>e.stopPropagation()}>
           <div className="sheet-grabber"/><div className="mobile-sheet-title">Backlinks in document</div>
           {incoming.length ? incoming.map(n=><button key={n.id} onClick={()=>{openNote(n);setMobileSheet(null)}}><Link2/><span>{n.title || "Untitled"}</span></button>) : <div className="mobile-sheet-empty">No notes link to this document yet.</div>}
