@@ -32,8 +32,9 @@ type PluginFlags = {
 };
 
 const DB = "notekeep";
-const VERSION = 9;
+const VERSION = 10;
 const uid = () => crypto.randomUUID();
+let dbPromise: Promise<IDBDatabase> | null = null;
 
 const blank = (title = "Untitled"): Note => ({
   id: uid(),
@@ -46,23 +47,32 @@ const blank = (title = "Untitled"): Note => ({
 });
 
 function database() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB, VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains("notes")) db.createObjectStore("notes", { keyPath: "id" });
       if (!db.objectStoreNames.contains("images")) db.createObjectStore("images", { keyPath: "id" });
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onclose = () => { dbPromise = null; };
+      db.onversionchange = () => { db.close(); dbPromise = null; };
+      resolve(db);
+    };
+    request.onerror = () => { dbPromise = null; reject(request.error); };
   });
+  return dbPromise;
 }
 
 function idb<T>(store: "notes" | "images", mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest) {
   return database().then(db => new Promise<T>((resolve, reject) => {
-    const request = fn(db.transaction(store, mode).objectStore(store));
+    const tx = db.transaction(store, mode);
+    const request = fn(tx.objectStore(store));
     request.onsuccess = () => resolve(request.result as T);
     request.onerror = () => reject(request.error);
+    tx.onerror = () => reject(tx.error);
   }));
 }
 
@@ -277,7 +287,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void navigator.storage?.persist?.().catch(() => false);
   }, []);
 
   useEffect(() => {
@@ -329,9 +343,16 @@ export default function Home() {
 
   const openNote = (note: Note, newTab = false) => {
     setActiveId(note.id);
-    if (newTab || !tabs.includes(note.id)) setTabs(current => current.includes(note.id) ? current : [...current, note.id]);
+    setTabs(current => current.includes(note.id) ? current : [...current, note.id]);
     setActiveTab(note.id);
     setLeftOpen(window.innerWidth > 800 ? leftOpen : false);
+  };
+
+  const switchTab = (id: string) => {
+    const note = notes.find(n => n.id === id);
+    if (!note) return;
+    setActiveTab(id);
+    setActiveId(id);
   };
 
   const createNote = async (title = "Untitled") => {
@@ -808,13 +829,14 @@ export default function Home() {
 
   const closeTab = (id: string) => {
     setTabs(current => {
+      if (current.length === 1) return current;
       const next = current.filter(x => x !== id);
       if (id === activeTab) {
         const idx = current.indexOf(id);
         const fallback = next[Math.max(0, idx - 1)] || next[0];
         if (fallback) { setActiveId(fallback); setActiveTab(fallback); }
       }
-      return next.length ? next : [activeId];
+      return next;
     });
   };
 
@@ -926,7 +948,7 @@ export default function Home() {
             {tabs.map(tabId => {
               const n = notes.find(x => x.id === tabId);
               if (!n) return null;
-              return <button key={tabId} className={"tab " + (tabId === activeTab ? "active" : "")} onClick={() => { setActiveTab(tabId); setActiveId(tabId); }}>
+              return <button key={tabId} className={"tab " + (tabId === activeTab ? "active" : "")} onClick={() => switchTab(tabId)}>
                 <File size={13}/><span>{n.title || "Untitled"}</span><i onClick={e => { e.stopPropagation(); closeTab(tabId); }}><X size={12}/></i>
               </button>;
             })}
