@@ -929,7 +929,7 @@ export default function Home() {
     if (command === "Toggle source mode" && plugins.sourceMode) setSourceMode(v => !v);
     if (command === "Open settings") setSettingsOpen(true);
     if (command === "Daily note" && plugins.dailyNotes) {
-      const title = new Date().toISOString().slice(0, 10);
+      const title = localDateKey();
       const existing = notes.find(n => n.title === title);
       if (existing) openNote(existing, true); else void createNote(title);
     }
@@ -938,18 +938,14 @@ export default function Home() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "p") { e.preventDefault(); setCommandOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".command-input")?.focus(), 20); }
-      if (mod && e.key.toLowerCase() === "k") {
+      if (hotkeysEnabled && mod && e.key.toLowerCase() === "p" && plugins.commandPalette) { e.preventDefault(); setCommandOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".command-input")?.focus(), 20); }
+      if (hotkeysEnabled && plugins.search && mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        if (window.innerWidth <= 800) {
-          setMobileSheet("search");
-        } else {
-          setLeftOpen(true);
-          setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 20);
-        }
+        if (window.innerWidth <= 800) setMobileSheet("search");
+        else { setLeftOpen(true); setTimeout(() => document.querySelector<HTMLInputElement>(".vault-search input")?.focus(), 20); }
       }
-      if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); void createNote(); }
-      if (mod && e.key.toLowerCase() === "o") { e.preventDefault(); importFile.current?.click(); }
+      if (hotkeysEnabled && mod && e.key.toLowerCase() === "n") { e.preventDefault(); void createNote(); }
+      if (hotkeysEnabled && mod && e.key.toLowerCase() === "o") { e.preventDefault(); importFile.current?.click(); }
       if (e.key === "Escape") { setCommandOpen(false); setSettingsOpen(false); setPropertiesOpen(false); setFormatOpen(false); setSheet(null); setImageViewer(null); setMobileSheet(null); setMobileImageMenu(null); setEditorFocused(false); }
     };
     window.addEventListener("keydown", handler);
@@ -1268,7 +1264,7 @@ export default function Home() {
           <button onClick={()=>{setMobileSheet(null);setReadingMode(false);setTimeout(()=>document.querySelector<HTMLInputElement>(".note-title")?.focus(),50)}}><FilePenLine/><span>Rename…</span></button>
           <button onClick={()=>{setMobileSheet("search")}}><Search/><span>Find…</span></button>
           {plugins.commandPalette && <button onClick={()=>{setMobileSheet(null);setCommandOpen(true)}}><Command/><span>Command palette</span></button>}
-          {plugins.dailyNotes && <button onClick={()=>{setMobileSheet(null);const title=new Date().toISOString().slice(0,10);const existing=notes.find(n=>n.title===title);if(existing)openNote(existing,true);else void createNote(title)}}><CalendarDays/><span>Daily note</span></button>}
+          {plugins.dailyNotes && <button onClick={()=>{setMobileSheet(null);const title=localDateKey();const existing=notes.find(n=>n.title===title);if(existing)openNote(existing,true);else void createNote(title)}}><CalendarDays/><span>Daily note</span></button>}
           <button onClick={()=>{setMobileSheet(null);void shareNote()}}><Share2/><span>Share note</span></button>
           <button className="danger" onClick={()=>{setMobileSheet(null);void deleteNote()}}><Trash2/><span>Delete note</span></button>
         </div>
